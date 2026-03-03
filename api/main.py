@@ -83,7 +83,12 @@ app.add_middleware(
 )
 
 
-# ── Health ──────────────────────────────────────────────────────────────
+# ── Root & Health ───────────────────────────────────────────────────────
+
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "F1 Podium Predictor API is running", "docs": "/docs"}
+
 
 @app.get("/health", response_model=HealthResponse)
 def health_check():
