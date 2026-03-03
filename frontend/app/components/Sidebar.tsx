@@ -21,11 +21,10 @@ export default function Sidebar() {
 
     return (
         <div className="w-64 h-screen fixed top-0 left-0 border-r border-f1-border bg-f1-dark/95 backdrop-blur-3xl flex flex-col p-6 z-50">
-            <div className="flex items-center gap-3 mb-12">
-                <div className="w-8 h-8 rounded-lg bg-f1-red flex items-center justify-center font-bold text-white shadow-lg shadow-f1-red/30">
-                    F1
+            <div className="flex items-center gap-3 mb-12 ml-1">
+                <div className="relative w-full max-w-[140px] h-14 rounded-[14px] shadow-[0_0_30px_10px_rgba(232,0,32,0.4)] bg-f1-dark shrink-0 flex items-center justify-center p-1">
+                    <img src="/assets/AppLogo.png" alt="ParcFermé AI Logo" className="w-full h-full object-contain rounded-[10px]" />
                 </div>
-                <h1 className="text-xl font-black tracking-tight text-white">Podium Predictor</h1>
             </div>
 
             <nav className="flex flex-col gap-2">
@@ -33,22 +32,24 @@ export default function Sidebar() {
                 {navItems.map((item) => {
                     const isActive = pathname === item.href;
                     const Icon = item.icon;
+                    const isAi = item.name === "Predictions" || item.name === "ParcFermé AI";
+
                     return (
                         <Link
                             key={item.name}
                             href={item.href}
                             className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${isActive ? "text-white" : "text-f1-muted hover:text-white"
-                                }`}
+                                } ${isAi ? "gold-glowing-tab my-0.5 shadow-lg shadow-amber-500/10" : ""}`}
                         >
                             {isActive && (
                                 <motion.div
                                     layoutId="active-nav"
-                                    className="absolute inset-0 bg-white/10 rounded-xl"
+                                    className="absolute inset-0 bg-white/10 rounded-xl z-[1]"
                                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                                 />
                             )}
-                            <Icon className={`w-5 h-5 relative z-10 ${isActive ? "text-f1-red" : "text-f1-muted group-hover:text-white"}`} />
-                            <span className="relative z-10">{item.name}</span>
+                            <Icon className={`w-5 h-5 relative z-10 ${isActive ? "text-f1-red" : isAi ? "text-amber-400" : "text-f1-muted group-hover:text-white"}`} />
+                            <span className={`relative z-10 ${isAi ? "text-amber-300 font-bold tracking-wide drop-shadow-md" : ""}`}>{item.name}</span>
                         </Link>
                     );
                 })}

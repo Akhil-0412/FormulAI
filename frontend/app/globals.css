@@ -74,8 +74,11 @@ body {
 .glass-card::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0; height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.2), rgba(255,255,255,0));
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -88,4 +91,49 @@ body {
 
 .glass-card:hover::before {
   opacity: 1;
+}
+
+/* Circulating Gold Glow for active AI tabs */
+@keyframes spin-gradient {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.gold-glowing-tab {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: rgba(20, 28, 54, 0.4);
+}
+
+.gold-glowing-tab::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(transparent, transparent, transparent, #fbbf24);
+  animation: spin-gradient 4s linear infinite;
+  z-index: 0;
+  opacity: 0.7;
+}
+
+.gold-glowing-tab::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  /* Inner border thickness */
+  background: var(--color-f1-navy);
+  border-radius: 0.70rem;
+  z-index: 0;
+}
+
+.gold-glowing-tab .relative {
+  z-index: 10;
 }
