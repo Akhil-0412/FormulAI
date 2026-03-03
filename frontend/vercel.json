@@ -1,0 +1,3 @@
+{
+    "installCommand": "bash pull_lfs.sh && npm install"
+}
