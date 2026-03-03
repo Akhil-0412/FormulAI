@@ -43,8 +43,10 @@ tools = [
     get_telemetry_comparison
 ]
 
-# Ensure we have a fallback if key not set
-api_key = os.environ.get("GROQ_API_KEY", "")
+# Ensure we have a fallback if key not set, and strip hidden newlines/spaces from HF Secret UI
+api_key = os.environ.get("GROQ_API_KEY", "").strip()
+os.environ["GROQ_API_KEY"] = api_key # Hard override the env for Langchain's internal checks
+
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
     temperature=0
