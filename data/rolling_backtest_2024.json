@@ -1,0 +1,102 @@
+[
+  {
+    "round": 1,
+    "race_name": "Bahrain GP (R1)",
+    "predicted": [
+      "gasly",
+      "leclerc",
+      "russell"
+    ],
+    "actual": [
+      "perez",
+      "max_verstappen",
+      "sainz"
+    ],
+    "correct": 0,
+    "brier_score": 0.13900622725486755,
+    "probabilities": {}
+  },
+  {
+    "round": 2,
+    "race_name": "Saudi Arabia GP (R2)",
+    "predicted": [
+      "perez",
+      "leclerc",
+      "max_verstappen"
+    ],
+    "actual": [
+      "perez",
+      "leclerc",
+      "max_verstappen"
+    ],
+    "correct": 3,
+    "brier_score": 0.022142093628644943,
+    "probabilities": {}
+  },
+  {
+    "round": 3,
+    "race_name": "Australia GP (R3)",
+    "predicted": [
+      "perez",
+      "norris",
+      "max_verstappen"
+    ],
+    "actual": [
+      "norris",
+      "leclerc",
+      "sainz"
+    ],
+    "correct": 1,
+    "brier_score": 0.16556262969970703,
+    "probabilities": {}
+  },
+  {
+    "round": 4,
+    "race_name": "Japan GP (R4)",
+    "predicted": [
+      "alonso",
+      "leclerc",
+      "max_verstappen"
+    ],
+    "actual": [
+      "perez",
+      "max_verstappen",
+      "sainz"
+    ],
+    "correct": 1,
+    "brier_score": 0.03737810254096985,
+    "probabilities": {}
+  },
+  {
+    "round": 5,
+    "race_name": "China GP (R5)",
+    "predicted": [
+      "leclerc",
+      "max_verstappen",
+      "sainz"
+    ],
+    "actual": [
+      "perez",
+      "norris",
+      "max_verstappen"
+    ],
+    "correct": 1,
+    "brier_score": 0.06457137316465378,
+    "probabilities": {}
+  },
+  {
+    "round": 6,
+    "race_name": "USA GP (R6)",
+    "predicted": [
+      "norris",
+      "max_verstappen",
+      "sainz"
+    ],
+    "actual": [
+      "norris"
+    ],
+    "correct": 1,
+    "brier_score": 0.21848133206367493,
+    "probabilities": {}
+  }
+]

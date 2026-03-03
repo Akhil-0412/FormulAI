@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@theme {
+  --color-f1-navy: #0B132E;
+  --color-f1-navy-light: #141C36;
+  --color-f1-dark: #091024;
+  --color-f1-red: #E80020;
+  --color-f1-teal: #00D2BE;
+  --color-f1-papaya: #FF8700;
+  --color-f1-green: #229971;
+  --color-f1-text: #FFFFFF;
+  --color-f1-muted: #8E96AD;
+  --color-f1-border: rgba(255, 255, 255, 0.1);
+}
+
+:root {
+  --background: var(--color-f1-navy);
+  --foreground: var(--color-f1-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--color-f1-navy);
+    --foreground: var(--color-f1-text);
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Sleek Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-f1-navy);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-f1-teal);
+}
+
+/* Custom Glassmorphism Utilities */
+.glass-panel {
+  background: rgba(20, 28, 54, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-f1-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.glass-card {
+  background: rgba(20, 28, 54, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-f1-border);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.2), rgba(255,255,255,0));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.glass-card:hover::before {
+  opacity: 1;
+}

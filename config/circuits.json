@@ -1,0 +1,148 @@
+{
+    "circuits": {
+        "bahrain": {
+            "lat": 26.0325,
+            "lon": 50.5106,
+            "type": "technical",
+            "overtake_difficulty": 0.3
+        },
+        "jeddah": {
+            "lat": 21.6319,
+            "lon": 39.1044,
+            "type": "street",
+            "overtake_difficulty": 0.5
+        },
+        "albert_park": {
+            "lat": -37.8497,
+            "lon": 144.968,
+            "type": "street",
+            "overtake_difficulty": 0.6
+        },
+        "suzuka": {
+            "lat": 34.8431,
+            "lon": 136.541,
+            "type": "high_speed",
+            "overtake_difficulty": 0.7
+        },
+        "shanghai": {
+            "lat": 31.3389,
+            "lon": 121.22,
+            "type": "technical",
+            "overtake_difficulty": 0.35
+        },
+        "miami": {
+            "lat": 25.9581,
+            "lon": -80.2389,
+            "type": "street",
+            "overtake_difficulty": 0.45
+        },
+        "imola": {
+            "lat": 44.3439,
+            "lon": 11.7167,
+            "type": "technical",
+            "overtake_difficulty": 0.65
+        },
+        "monaco": {
+            "lat": 43.7347,
+            "lon": 7.4206,
+            "type": "street",
+            "overtake_difficulty": 0.95
+        },
+        "montreal": {
+            "lat": 45.5,
+            "lon": -73.5228,
+            "type": "street",
+            "overtake_difficulty": 0.35
+        },
+        "barcelona": {
+            "lat": 41.57,
+            "lon": 2.2611,
+            "type": "high_speed",
+            "overtake_difficulty": 0.6
+        },
+        "spielberg": {
+            "lat": 47.2197,
+            "lon": 14.7647,
+            "type": "high_speed",
+            "overtake_difficulty": 0.3
+        },
+        "silverstone": {
+            "lat": 52.0786,
+            "lon": -1.0169,
+            "type": "high_speed",
+            "overtake_difficulty": 0.45
+        },
+        "hungaroring": {
+            "lat": 47.5789,
+            "lon": 19.2486,
+            "type": "technical",
+            "overtake_difficulty": 0.8
+        },
+        "spa": {
+            "lat": 50.4372,
+            "lon": 5.9714,
+            "type": "high_speed",
+            "overtake_difficulty": 0.25
+        },
+        "zandvoort": {
+            "lat": 52.3888,
+            "lon": 4.5409,
+            "type": "technical",
+            "overtake_difficulty": 0.75
+        },
+        "monza": {
+            "lat": 45.6156,
+            "lon": 9.2811,
+            "type": "high_speed",
+            "overtake_difficulty": 0.25
+        },
+        "baku": {
+            "lat": 40.3725,
+            "lon": 49.8533,
+            "type": "street",
+            "overtake_difficulty": 0.3
+        },
+        "singapore": {
+            "lat": 1.2914,
+            "lon": 103.864,
+            "type": "street",
+            "overtake_difficulty": 0.7
+        },
+        "cota": {
+            "lat": 30.1328,
+            "lon": -97.6411,
+            "type": "technical",
+            "overtake_difficulty": 0.35
+        },
+        "mexico_city": {
+            "lat": 19.4042,
+            "lon": -99.0907,
+            "type": "technical",
+            "overtake_difficulty": 0.4
+        },
+        "interlagos": {
+            "lat": -23.7036,
+            "lon": -46.6997,
+            "type": "technical",
+            "overtake_difficulty": 0.3
+        },
+        "las_vegas": {
+            "lat": 36.1162,
+            "lon": -115.174,
+            "type": "street",
+            "overtake_difficulty": 0.35
+        },
+        "lusail": {
+            "lat": 25.49,
+            "lon": 51.4542,
+            "type": "technical",
+            "overtake_difficulty": 0.45
+        },
+        "yas_marina": {
+            "lat": 24.4672,
+            "lon": 54.6031,
+            "type": "technical",
+            "overtake_difficulty": 0.4
+        }
+    }
+}

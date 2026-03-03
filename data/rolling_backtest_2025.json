@@ -1,0 +1,192 @@
+[
+  {
+    "round": 1,
+    "race_name": "Australia GP (R1)",
+    "predicted": [
+      "russell",
+      "tsunoda",
+      "piastri"
+    ],
+    "actual": [
+      "norris",
+      "max_verstappen",
+      "russell"
+    ],
+    "correct": 1,
+    "brier_score": 0.07981345802545547,
+    "probabilities": {
+      "norris": 0.4535764157772064,
+      "max_verstappen": 0.5749016404151917,
+      "russell": 0.8675512671470642,
+      "antonelli": 0.009100116789340973,
+      "albon": 0.1110488623380661,
+      "stroll": 0.003930052276700735,
+      "hulkenberg": 0.0027315448969602585,
+      "leclerc": 0.004160276148468256,
+      "piastri": 0.9327417016029358,
+      "hamilton": 0.004081958904862404,
+      "gasly": 0.0029714363627135754,
+      "tsunoda": 0.4574192464351654,
+      "ocon": 0.007891767658293247,
+      "bearman": 0.060965243726968765,
+      "lawson": 0.00818603951483965,
+      "bortoleto": 0.014008236117661,
+      "alonso": 0.02296466752886772,
+      "sainz": 0.05468619242310524,
+      "doohan": 0.010365867055952549,
+      "hadjar": 0.007175319362431765
+    }
+  },
+  {
+    "round": 2,
+    "race_name": "China GP (R2)",
+    "predicted": [
+      "russell",
+      "max_verstappen",
+      "piastri"
+    ],
+    "actual": [
+      "piastri",
+      "norris",
+      "russell"
+    ],
+    "correct": 2,
+    "brier_score": 0.04653662070631981,
+    "probabilities": {
+      "piastri": 0.9564462900161743,
+      "norris": 0.9030749201774597,
+      "russell": 0.9819880127906799,
+      "max_verstappen": 0.942462682723999,
+      "ocon": 0.007255372125655413,
+      "antonelli": 0.037683870643377304,
+      "albon": 0.0018498605350032449,
+      "bearman": 0.0061638811603188515,
+      "stroll": 0.004189305938780308,
+      "sainz": 0.06616205722093582,
+      "hadjar": 0.14536911249160767,
+      "lawson": 0.023863613605499268,
+      "doohan": 0.006510524544864893,
+      "bortoleto": 0.006546821445226669,
+      "hulkenberg": 0.004919412080198526,
+      "tsunoda": 0.002635748591274023,
+      "alonso": 0.00315918424166739,
+      "leclerc": 0.04245751351118088,
+      "hamilton": 0.03595669940114021,
+      "gasly": 0.006932128686457872
+    }
+  },
+  {
+    "round": 3,
+    "race_name": "Japan GP (R3)",
+    "predicted": [
+      "norris",
+      "max_verstappen",
+      "leclerc"
+    ],
+    "actual": [
+      "max_verstappen",
+      "norris",
+      "piastri"
+    ],
+    "correct": 2,
+    "brier_score": 0.03981631621718407,
+    "probabilities": {
+      "max_verstappen": 0.9668479561805725,
+      "norris": 0.9784113168716431,
+      "piastri": 0.9702329635620117,
+      "leclerc": 0.43116703629493713,
+      "russell": 0.7365481853485107,
+      "antonelli": 0.2332150638103485,
+      "hamilton": 0.002933019772171974,
+      "hadjar": 0.032793302088975906,
+      "albon": 0.006838285829871893,
+      "bearman": 0.0009724396513774991,
+      "alonso": 0.003915742039680481,
+      "tsunoda": 0.006956156343221664,
+      "gasly": 0.01082363910973072,
+      "sainz": 0.09732198715209961,
+      "doohan": 0.009991689585149288,
+      "hulkenberg": 0.004093365278095007,
+      "lawson": 0.007575789000838995,
+      "ocon": 0.0037725430447608232,
+      "bortoleto": 0.007242813240736723,
+      "stroll": 0.007261138409376144
+    }
+  },
+  {
+    "round": 4,
+    "race_name": "Bahrain GP (R4)",
+    "predicted": [
+      "max_verstappen",
+      "russell",
+      "piastri"
+    ],
+    "actual": [
+      "piastri",
+      "russell",
+      "norris"
+    ],
+    "correct": 2,
+    "brier_score": 0.08438894152641296,
+    "probabilities": {
+      "piastri": 0.8926938772201538,
+      "russell": 0.9182907342910767,
+      "norris": 0.08915382623672485,
+      "leclerc": 0.7551754117012024,
+      "hamilton": 0.0023840577341616154,
+      "max_verstappen": 0.05957847461104393,
+      "gasly": 0.32313501834869385,
+      "ocon": 0.0022162948735058308,
+      "tsunoda": 0.0012428528862074018,
+      "bearman": 0.00268276478163898,
+      "antonelli": 0.40179887413978577,
+      "albon": 0.0027459501288831234,
+      "hadjar": 0.004823732189834118,
+      "doohan": 0.0080861272290349,
+      "alonso": 0.004990564193576574,
+      "lawson": 0.006929532624781132,
+      "stroll": 0.001774655538611114,
+      "bortoleto": 0.00575028732419014,
+      "sainz": 0.00286929146386683,
+      "hulkenberg": 0.0040103979408741
+    }
+  },
+  {
+    "round": 5,
+    "race_name": "Saudi Arabia GP (R5)",
+    "predicted": [
+      "piastri",
+      "max_verstappen",
+      "leclerc"
+    ],
+    "actual": [
+      "piastri",
+      "max_verstappen",
+      "leclerc"
+    ],
+    "correct": 3,
+    "brier_score": 0.03791584447026253,
+    "probabilities": {
+      "piastri": 0.9929621815681458,
+      "max_verstappen": 0.7277599573135376,
+      "leclerc": 0.47611773014068604,
+      "norris": 0.17622846364974976,
+      "russell": 0.460869163274765,
+      "antonelli": 0.4069055914878845,
+      "hamilton": 0.012194006703794003,
+      "sainz": 0.005728057585656643,
+      "albon": 0.006235095672309399,
+      "hadjar": 0.0014140817802399397,
+      "alonso": 0.002363559091463685,
+      "lawson": 0.009424111805856228,
+      "bearman": 0.0014254506677389145,
+      "ocon": 0.003908803686499596,
+      "hulkenberg": 0.005023296922445297,
+      "stroll": 0.003021814161911607,
+      "doohan": 0.004518110770732164,
+      "bortoleto": 0.016000481322407722,
+      "tsunoda": 0.002083238447085023,
+      "gasly": 0.004678517114371061
+    }
+  }
+]
