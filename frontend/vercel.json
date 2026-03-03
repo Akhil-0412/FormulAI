@@ -1,3 +1,0 @@
-{
-    "installCommand": "bash install_lfs.sh && npm install"
-}
