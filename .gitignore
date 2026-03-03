@@ -18,7 +18,6 @@ data/db/
 data/feature_cache/
 
 # Model artifacts
-models/artifacts/
 
 # IDE
 .vscode/
