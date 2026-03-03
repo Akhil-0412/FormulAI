@@ -7,12 +7,11 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc g++ && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python deps
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e ".[dev]"
-
-# Copy source
+# Copy entire source first (needed for editable install)
 COPY . .
+
+# Install Python deps (includes langchain, langgraph, langchain-groq)
+RUN pip install --no-cache-dir -e ".[dev]"
 
 # Create data directories
 RUN mkdir -p data/cache data/db data/feature_cache models/artifacts
