@@ -107,6 +107,12 @@ export default function ParcFermePage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message: text.trim() })
             });
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`HTTP error! status: ${res.status}, body: ${text.substring(0, 100)}`);
+            }
+
             const data: ChatResponse = await res.json();
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
@@ -114,12 +120,13 @@ export default function ParcFermePage() {
                 content: data.text_response,
                 data: data
             }]);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Chat error:", error);
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
                 role: "assistant",
-                content: "⚠️ Telemetry connection lost. Please ensure the backend is running on port 8000."
+                content: `⚠️ Telemetry connection failed! Attempted to reach backend at: ${baseUrl}. Error details: ${error.message || error}`
             }]);
         } finally {
             setIsLoading(false);
