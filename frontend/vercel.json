@@ -1,3 +1,3 @@
 {
-    "installCommand": "curl -sLO https://github.com/git-lfs/git-lfs/releases/download/v3.4.0/git-lfs-linux-amd64-v3.4.0.tar.gz && tar -xzf git-lfs-linux-amd64-v3.4.0.tar.gz && ./git-lfs-3.4.0/install.sh && git lfs install && git remote set-url origin https://github.com/Akhil-0412/FormulAI.git && git pull origin main && git lfs fetch origin main && git lfs checkout && npm install"
+    "installCommand": "bash install_lfs.sh && npm install"
 }
