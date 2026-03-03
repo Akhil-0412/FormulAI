@@ -1,3 +1,12 @@
+---
+title: FormulAI Backend API
+emoji: 🏎️
+colorFrom: yellow
+colorTo: yellow
+sdk: docker
+pinned: false
+---
+
 # 🏎️ F1 Podium Predictor
 
 Multi-stage ML pipeline for predicting Formula 1 podium finishers using historical and real-time data.
