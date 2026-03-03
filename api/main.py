@@ -792,13 +792,23 @@ def parc_ferme_chat(request: ChatRequest):
     Agentic RAG Endpoint for ParcFermé AI using LangGraph.
     Returns structured JSON according to the F1 Strategic Intelligence Engine spec.
     """
-    from api.chatbot.agent import chat_with_agent
-    
-    res = chat_with_agent(request.message, thread_id="default_thread")
-    
-    return ChatResponse(
-        text_response=res.get("text_response", ""),
-        metadata=res.get("metadata", {}),
-        visualizations=res.get("visualizations", []),
-        tables=res.get("tables", [])
-    )
+    import traceback
+    try:
+        from api.chatbot.agent import chat_with_agent
+        
+        res = chat_with_agent(request.message, thread_id="default_thread")
+        
+        return ChatResponse(
+            text_response=res.get("text_response", ""),
+            metadata=res.get("metadata", {}),
+            visualizations=res.get("visualizations", []),
+            tables=res.get("tables", [])
+        )
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        return ChatResponse(
+            text_response=f"⚠️ FATAL BACKEND CRASH:\n```\n{error_trace}\n```",
+            metadata={"timestamp": "ERROR", "session": "DEBUG_TRACE", "entities": []},
+            visualizations=[],
+            tables=[]
+        )
