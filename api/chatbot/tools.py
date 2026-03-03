@@ -61,10 +61,26 @@ def get_driver_stats(driver_name: str) -> str:
 @tool
 def get_telemetry_comparison(driver1: str, driver2: str) -> str:
     """Provides a telemetry chart and map visualization for two drivers. Always use this tool if the user asks for a comparison or telemetry."""
-    d1_code = "HAM" if "hamilton" in driver1.lower() else "VER" if "verstappen" in driver1.lower() else "NOR"
-    d2_code = "RUS" if "russell" in driver2.lower() else "NOR" if "norris" in driver2.lower() else "VER"
-    d1_color = "#E80020" if d1_code == "HAM" else "#3671C6" if d1_code == "VER" else "#FF8000"
-    d2_color = "#00D2BE" if d2_code == "RUS" else "#FF8000" if d2_code == "NOR" else "#3671C6"
+    def get_code(name: str):
+        mapping = {
+            "verstappen": "VER", "norris": "NOR", "hamilton": "HAM",
+            "leclerc": "LEC", "russell": "RUS", "piastri": "PIA",
+            "sainz": "SAI", "alonso": "ALO", "perez": "PER",
+            "gasly": "GAS", "ocon": "OCO", "albon": "ALB",
+            "stroll": "STR", "bottas": "BOT", "hulkenberg": "HUL",
+            "tsunoda": "TSU", "bearman": "BEA", "antonelli": "ANT",
+            "colapinto": "COL", "lawson": "LAW", "hadjar": "HAD",
+            "bortoleto": "BOR", "lindblad": "LIN"
+        }
+        for k, v in mapping.items():
+            if k in name.lower(): return v
+        return name[:3].upper() if len(name) >= 3 else "UNK"
+        
+    d1_code = get_code(driver1)
+    d2_code = get_code(driver2)
+    
+    d1_color = "#E80020" if d1_code in ["LEC", "SAI", "HAM"] else "#3671C6" if d1_code in ["VER", "PER", "LAW", "TSU"] else "#FF8000" if d1_code in ["NOR", "PIA"] else "#00D2BE"
+    d2_color = "#00D2BE" if d2_code in ["RUS", "ANT"] else "#E80020" if d2_code in ["LEC", "SAI", "HAM"] else "#FF8000" if d2_code in ["NOR", "PIA"] else "#3671C6"
     
     return f"""
     The user requested telemetry. Please include the following exact JSON structure in the 'visualizations' array of your final response:
