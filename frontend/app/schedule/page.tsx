@@ -1,7 +1,44 @@
 'use client';
 import { CalendarCheck, MapPin, ChevronRight, Info } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
+
+interface BacktestRace {
+    round: number;
+    race_name: string;
+    predicted: string[];
+    actual: string[];
+    correct: number;
+    brier_score: number;
+    probabilities: Record<string, number>;
+    is_future?: boolean;
+}
+
+const DRIVER_DATA: Record<string, { name: string; team: string; img: string }> = {
+    max_verstappen: { name: "Max Verstappen", team: "Red Bull Racing", img: "/assets/Teams/Red Bull Racing/2025redbullracingmaxver01right.avif" },
+    norris: { name: "Lando Norris", team: "McLaren", img: "/assets/Teams/McLaren/2025mclarenlannor01right.avif" },
+    piastri: { name: "Oscar Piastri", team: "McLaren", img: "/assets/Teams/McLaren/2025mclarenoscpia01right.avif" },
+    leclerc: { name: "Charles Leclerc", team: "Ferrari", img: "/assets/Teams/Ferrari/2025ferrarichalec01right.avif" },
+    hamilton: { name: "Lewis Hamilton", team: "Ferrari", img: "/assets/Teams/Ferrari/2025ferrarilewham01right.avif" },
+    russell: { name: "George Russell", team: "Mercedes", img: "/assets/Teams/Mercedes/2025mercedesgeorus01right.avif" },
+    antonelli: { name: "Kimi Antonelli", team: "Mercedes", img: "/assets/Teams/Mercedes/2025mercedesandant01right.avif" },
+    alonso: { name: "Fernando Alonso", team: "Aston Martin", img: "/assets/Teams/Aston Martin/astonmartinferalo.avif" },
+    stroll: { name: "Lance Stroll", team: "Aston Martin", img: "/assets/Teams/Aston Martin/astonmartinlanstr.avif" },
+    gasly: { name: "Pierre Gasly", team: "Alpine", img: "/assets/Teams/Alpine/alpinepiegas.avif" },
+    doohan: { name: "Franco Colapinto", team: "Alpine", img: "/assets/Teams/Alpine/alpinefracol.avif" },
+    albon: { name: "Alex Albon", team: "Williams", img: "/assets/Teams/Williams/williamsalealb.avif" },
+    sainz: { name: "Carlos Sainz", team: "Williams", img: "/assets/Teams/Williams/williamscarsai.avif" },
+    ocon: { name: "Esteban Ocon", team: "Haas", img: "/assets/Teams/Haas F1 Team/2025haasestoco01right.avif" },
+    bearman: { name: "Oliver Bearman", team: "Haas", img: "/assets/Teams/Haas F1 Team/2025haasolibea01right.avif" },
+    tsunoda: { name: "Arvid Lindblad", team: "RB", img: "/assets/Teams/Racing Bulls/2026racingbullsarvlin01right.avif" },
+    hadjar: { name: "Isack Hadjar", team: "Red Bull Racing", img: "/assets/Teams/Red Bull Racing/2026redbullracingisahad01right.avif" },
+    lawson: { name: "Liam Lawson", team: "RB", img: "/assets/Teams/Racing Bulls/2025racingbullslialaw01right.avif" },
+    hulkenberg: { name: "Nico Hulkenberg", team: "Audi", img: "/assets/Teams/Audi/2026audinichul01right.avif" },
+    bortoleto: { name: "Gabriel Bortoleto", team: "Audi", img: "/assets/Teams/Audi/2026audigabbor01right.avif" },
+};
+
+const getDriverInfo = (id: string) => DRIVER_DATA[id] || { name: id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), team: "Unknown", img: "" };
 
 const CALENDAR = [
     { round: "TEST", name: "FORMULA 1 ARAMCO PRE-SEASON TESTING 1 2026", date: "11 - 13 Feb", location: "Bahrain", status: "Testing" },
@@ -34,10 +71,30 @@ const CALENDAR = [
 
 export default function SchedulePage() {
     const [notification, setNotification] = useState<string | null>(null);
+    const [backtestData, setBacktestData] = useState<BacktestRace[]>([]);
+    const [expandedRound, setExpandedRound] = useState<number | string | null>(null);
 
-    const handleRaceClick = (raceName: string) => {
-        setNotification(`Data for ${raceName} is currently unavailable as the match hasn't started yet.`);
-        setTimeout(() => setNotification(null), 3000);
+    useEffect(() => {
+        fetch("/data/rolling_backtest_2026.json")
+            .then(res => res.json())
+            .then(data => setBacktestData(data))
+            .catch(err => console.error("Could not load backtest data in schedule view", err));
+    }, []);
+
+    const handleRaceClick = (race: any) => {
+        if (race.round === "TEST") {
+            setNotification(`Data for ${race.name} is currently unavailable as it is a testing event.`);
+            setTimeout(() => setNotification(null), 3000);
+            return;
+        }
+
+        const raceData = backtestData.find(r => r.round === race.round);
+        if (raceData) {
+            setExpandedRound(expandedRound === race.round ? null : race.round);
+        } else {
+            setNotification(`Predictions for ${race.name} pending completion of prior races.`);
+            setTimeout(() => setNotification(null), 3000);
+        }
     };
 
     return (
@@ -65,17 +122,22 @@ export default function SchedulePage() {
             </div>
 
             <div className="flex flex-col gap-6">
-                {CALENDAR.map((race, idx) => (
+                {CALENDAR.map((race, idx) => {
+                    const raceData = typeof race.round === 'number' ? backtestData.find(r => r.round === race.round) : null;
+                    const isExpanded = expandedRound === race.round;
+
+                    return (
                     <div
                         key={`${race.round}-${idx}`}
-                        onClick={() => handleRaceClick(race.name)}
-                        className="group relative glass-panel rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-500 cursor-pointer hover:-translate-y-1 shadow-lg"
+                        className="group relative glass-panel rounded-3xl overflow-hidden border border-white/10 transition-all duration-500 shadow-lg flex flex-col"
                     >
                         {/* Background subtle gradient / glow on hover */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-f1-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/0 to-f1-teal/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-                        <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-
+                        <div 
+                            onClick={() => handleRaceClick(race)}
+                            className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 cursor-pointer hover:bg-white/5 transition-colors"
+                        >
                             {/* Left Side: Date and Name */}
                             <div className="flex items-center gap-8">
                                 {/* Round Number */}
@@ -88,7 +150,7 @@ export default function SchedulePage() {
 
                                 <div>
                                     <p className={`${race.status === 'Testing' ? 'text-f1-papaya' : 'text-f1-teal'} font-bold uppercase tracking-widest text-sm mb-1`}>{race.date}</p>
-                                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight group-hover:scale-[1.01] transform transition-transform duration-500 origin-left leading-tight">
+                                    <h2 className={`text-2xl md:text-3xl font-black ${raceData?.is_future ? 'text-f1-papaya' : 'text-white'} tracking-tight group-hover:scale-[1.01] transform transition-transform duration-500 origin-left leading-tight`}>
                                         {race.name}
                                     </h2>
                                     <div className="flex items-center gap-4 mt-2">
@@ -101,18 +163,83 @@ export default function SchedulePage() {
 
                             {/* Right Side: Status and Arrow */}
                             <div className="flex items-center gap-6 w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t md:border-none border-white/10 justify-between md:justify-end">
-                                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 group-hover:bg-white/10 transition-colors">
-                                    <div className={`w-2 h-2 rounded-full ${race.status === 'Testing' ? 'bg-f1-papaya' : 'bg-f1-teal'} animate-pulse`} />
-                                    <span className="text-white font-semibold text-sm tracking-wide">{race.status}</span>
+                                <div className={`flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border ${raceData?.is_future ? 'border-f1-papaya' : 'border-white/10'} group-hover:bg-white/10 transition-colors`}>
+                                    <div className={`w-2 h-2 rounded-full ${race.status === 'Testing' ? 'bg-f1-papaya' : (raceData?.is_future ? 'bg-f1-papaya' : 'bg-f1-teal')} animate-pulse`} />
+                                    <span className={`${raceData?.is_future ? 'text-f1-papaya' : 'text-white'} font-semibold text-sm tracking-wide`}>
+                                        {raceData ? (raceData.is_future ? 'Upcoming Prediction' : 'Completed') : race.status}
+                                    </span>
                                 </div>
-                                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:text-white group-hover:bg-white/10 group-hover:translate-x-2 transition-all duration-500">
-                                    <ChevronRight className="w-6 h-6" />
+                                <div className={`w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:text-white group-hover:bg-white/10 transition-all duration-500 ${isExpanded ? 'rotate-90' : ''}`}>
+                                    <ChevronRight className="w-6 h-6 transform transition-transform" />
                                 </div>
                             </div>
-
                         </div>
+
+                        {/* Expandable Prediction Section */}
+                        <AnimatePresence>
+                            {isExpanded && raceData && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                    className="border-t border-white/10 bg-f1-navy/50 overflow-hidden"
+                                >
+                                    <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8">
+                                        {/* Predicted Podium */}
+                                        <div className="flex-1 flex flex-col gap-3">
+                                            <span className="text-xs font-bold text-f1-muted uppercase tracking-widest pl-2">ML Predicted Podium</span>
+                                            {raceData.predicted.slice(0, 3).map((driverId, pidx) => {
+                                                const dInfo = getDriverInfo(driverId);
+                                                return (
+                                                    <div key={`p-${pidx}`} className="flex items-center gap-4 bg-white/5 border border-white/5 rounded-xl p-2 relative overflow-hidden group hover:border-white/20 transition-colors">
+                                                        <div className={`absolute top-0 left-0 bottom-0 w-1 ${pidx===0?'bg-f1-papaya':pidx===1?'bg-gray-400':'bg-amber-700'}`} />
+                                                        <div className="w-8 font-black text-xl text-white/20 italic pl-2">P{pidx+1}</div>
+                                                        <div className="w-10 h-10 rounded-full overflow-hidden relative bg-f1-navy">
+                                                            {dInfo.img && <Image src={dInfo.img} alt={dInfo.name} fill className="object-cover object-top" unoptimized />}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-white font-bold text-sm leading-tight">{dInfo.name}</span>
+                                                            <span className="text-white/50 text-xs font-mono">{dInfo.team}</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Actual Podium */}
+                                        <div className="flex-1 flex flex-col gap-3">
+                                            <span className="text-xs font-bold text-f1-muted uppercase tracking-widest pl-2">Actual Podium</span>
+                                            {raceData.is_future ? (
+                                                <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-white/10 rounded-xl p-6 bg-white/5">
+                                                    <span className="text-2xl font-black text-white/20 italic uppercase tracking-widest">TBA</span>
+                                                    <span className="text-f1-muted text-sm mt-2">Waiting for Lights Out</span>
+                                                </div>
+                                            ) : (
+                                                raceData.actual.slice(0, 3).map((driverId, pidx) => {
+                                                    const dInfo = getDriverInfo(driverId);
+                                                    return (
+                                                        <div key={`a-${pidx}`} className="flex items-center gap-4 bg-white/5 border border-white/5 rounded-xl p-2 relative overflow-hidden group hover:border-white/20 transition-colors">
+                                                            <div className={`absolute top-0 left-0 bottom-0 w-1 ${pidx===0?'bg-f1-papaya':pidx===1?'bg-gray-400':'bg-amber-700'}`} />
+                                                            <div className="w-8 font-black text-xl text-white/20 italic pl-2">P{pidx+1}</div>
+                                                            <div className="w-10 h-10 rounded-full overflow-hidden relative bg-f1-navy">
+                                                                {dInfo.img && <Image src={dInfo.img} alt={dInfo.name} fill className="object-cover object-top" unoptimized />}
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-white font-bold text-sm leading-tight">{dInfo.name}</span>
+                                                                <span className="text-white/50 text-xs font-mono">{dInfo.team}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                ))}
+                )})}
             </div>
         </div>
     );
