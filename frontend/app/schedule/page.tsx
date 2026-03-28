@@ -41,8 +41,6 @@ const DRIVER_DATA: Record<string, { name: string; team: string; img: string }> =
 const getDriverInfo = (id: string) => DRIVER_DATA[id] || { name: id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), team: "Unknown", img: "" };
 
 const CALENDAR = [
-    { round: "TEST", name: "FORMULA 1 ARAMCO PRE-SEASON TESTING 1 2026", date: "11 - 13 Feb", location: "Bahrain", status: "Testing" },
-    { round: "TEST", name: "FORMULA 1 ARAMCO PRE-SEASON TESTING 2 2026", date: "18 - 20 Feb", location: "Bahrain", status: "Testing" },
     { round: 1, name: "FORMULA 1 QATAR AIRWAYS AUSTRALIAN GRAND PRIX 2026", date: "06 - 08 Mar", location: "Australia", status: "Upcoming" },
     { round: 2, name: "FORMULA 1 HEINEKEN CHINESE GRAND PRIX 2026", date: "13 - 15 Mar", location: "China", status: "Upcoming" },
     { round: 3, name: "FORMULA 1 ARAMCO JAPANESE GRAND PRIX 2026", date: "27 - 29 Mar", location: "Japan", status: "Upcoming" },
@@ -82,12 +80,6 @@ export default function SchedulePage() {
     }, []);
 
     const handleRaceClick = (race: any) => {
-        if (race.round === "TEST") {
-            setNotification(`Data for ${race.name} is currently unavailable as it is a testing event.`);
-            setTimeout(() => setNotification(null), 3000);
-            return;
-        }
-
         const raceData = backtestData.find(r => r.round === race.round);
         if (raceData) {
             setExpandedRound(expandedRound === race.round ? null : race.round);
