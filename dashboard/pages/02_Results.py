@@ -11,7 +11,7 @@ st.divider()
 
 col1, col2 = st.columns(2)
 with col1:
-    year = st.selectbox("Season", [2025, 2024, 2023])
+    year = st.selectbox("Season", [2026, 2025, 2024, 2023])
 with col2:
     round_no = st.number_input("Round", min_value=1, max_value=24, step=1)
 

@@ -48,7 +48,47 @@ const TOP_CONSTRUCTORS = [
 ];
 
 export default function Home() {
-  const countdown = useCountdown("2026-03-08T15:00:00Z"); // Bahrain GP Race Day
+  const [upcomingRace, setUpcomingRace] = useState({
+    name: "Loading...",
+    dateString: "Loading...",
+    targetDate: new Date().toISOString()
+  });
+
+  useEffect(() => {
+    async function fetchSchedule() {
+      try {
+        const res = await fetch("https://api.jolpi.ca/ergast/f1/2026.json");
+        const data = await res.json();
+        const races = data.MRData.RaceTable.Races;
+        const now = new Date();
+        
+        // Find the first race strictly in the future
+        let nextRace = races.find((r: any) => new Date(`${r.date}T${r.time || "00:00:00Z"}`) > now);
+        
+        if (!nextRace && races.length > 0) {
+          nextRace = races[races.length - 1];
+        }
+        
+        if (nextRace) {
+          const raceDate = new Date(`${nextRace.date}T${nextRace.time || "00:00:00Z"}`);
+          const month = raceDate.toLocaleString('default', { month: 'long' });
+          const day = String(raceDate.getDate()).padStart(2, '0');
+          const year = raceDate.getFullYear();
+          
+          setUpcomingRace({
+            name: nextRace.raceName,
+            dateString: `${month} ${day}, ${year}`,
+            targetDate: raceDate.toISOString()
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch F1 schedule natively:", err);
+      }
+    }
+    fetchSchedule();
+  }, []);
+
+  const countdown = useCountdown(upcomingRace.targetDate);
 
   return (
     <div className="flex flex-col gap-10 max-w-7xl mx-auto mb-20 animate-in fade-in duration-700">
@@ -83,9 +123,9 @@ export default function Home() {
               Upcoming Race
             </div>
             <div>
-              <h2 className="text-5xl md:text-6xl font-black text-white italic tracking-tighter uppercase mb-2">Bahrain GP</h2>
+              <h2 className="text-5xl md:text-6xl font-black text-white italic tracking-tighter uppercase mb-2">{upcomingRace.name}</h2>
               <p className="text-xl font-medium text-white/80 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-f1-papaya" /> March 06 - 08, 2026
+                <Calendar className="w-5 h-5 text-f1-papaya" /> {upcomingRace.dateString}
               </p>
             </div>
           </div>
@@ -176,7 +216,7 @@ export default function Home() {
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <Trophy className="w-5 h-5 text-f1-papaya" /> Defending Drivers
             </h3>
-            <span className="text-xs font-bold text-f1-muted uppercase">2025 Top 3</span>
+            <span className="text-xs font-bold text-f1-muted uppercase">2026 Top 3</span>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -215,7 +255,7 @@ export default function Home() {
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <Target className="w-5 h-5 text-f1-papaya" /> Constructors
             </h3>
-            <span className="text-xs font-bold text-f1-muted uppercase">2025 Final</span>
+            <span className="text-xs font-bold text-f1-muted uppercase">2026 Final</span>
           </div>
 
           <div className="flex flex-col gap-4">

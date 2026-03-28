@@ -34,7 +34,7 @@ if app_mode == "🔮 Live Predictor":
     with st.sidebar:
         st.divider()
         st.header("🏁 Race Selector")
-        year = st.selectbox("Season", list(range(2025, 2017, -1)), index=0)
+        year = st.selectbox("Season", list(range(2026, 2017, -1)), index=0)
         round_number = st.number_input("Round", min_value=1, max_value=24, value=1)
         predict_btn = st.button("🔮 Predict Podium", type="primary", use_container_width=True)
         mc_btn = st.button("🎲 Monte Carlo Simulation", use_container_width=True)
@@ -195,7 +195,7 @@ elif app_mode == "📈 Rolling Backtest":
     with st.sidebar:
         st.divider()
         st.header("⚙️ Backtest Settings")
-        bt_year = st.selectbox("Season", [2024, 2025], index=0)
+        bt_year = st.selectbox("Season", [2024, 2025, 2026], index=2)
         
     data_path = Path(__file__).resolve().parent.parent / "data" / f"rolling_backtest_{bt_year}.json"
     

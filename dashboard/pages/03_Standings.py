@@ -9,7 +9,7 @@ st.markdown('<h1 class="main-header">🏆 Championship Standings</h1>', unsafe_a
 st.markdown("Current driver and constructor points.")
 st.divider()
 
-year = st.selectbox("Season", [2025, 2024, 2023])
+year = st.selectbox("Season", [2026, 2025, 2024, 2023])
 tab1, tab2 = st.tabs(["Drivers", "Constructors"])
 
 with tab1:

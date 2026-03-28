@@ -5,11 +5,12 @@ import json
 import logging
 import sys
 from pathlib import Path
+import pandas as pd
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from data.db import query_df
+from data.db import query_df, get_connection
 from features.pre_race import build_pre_race_features
 from features.feature_store import get_training_features, get_X_y
 from models.stage1_prerace import PreRacePredictor
@@ -106,6 +107,112 @@ def main() -> None:
             logger.warning("Failed R%d: %s", round_num, exc)
             import traceback
             traceback.print_exc()
+
+    # ── Forward prediction for the NEXT unraced round ──────────────────
+    next_round = races["round"].max() + 1
+    next_race_id = f"{args.test_year}_{next_round}"
+    logger.info("Attempting forward prediction for R%d...", next_round)
+    inserted_temp = False
+    try:
+        # Check if this next round already has data (unlikely for a future race)
+        existing = query_df("SELECT race_id FROM races WHERE race_id = ?", (next_race_id,))
+
+        if existing.empty:
+            # Insert a temporary race entry using schedule data
+            from data.jolpica_client import JolpicaClient
+            jc = JolpicaClient()
+            schedule = jc.get_schedule(args.test_year)
+            jc.close()
+
+            race_sched = [r for r in schedule if str(r.get("round")) == str(next_round)]
+            if race_sched:
+                rs = race_sched[0]
+                circuit_data = rs.get("Circuit", {})
+                circuit_id = circuit_data.get("circuitId", "unknown")
+                circuit_name = circuit_data.get("circuitName", "Unknown")
+                country = circuit_data.get("Location", {}).get("country", "Unknown")
+                race_date = rs.get("date", "")
+
+                # Get driver roster from the LAST completed race
+                last_race_id = f"{args.test_year}_{races['round'].max()}"
+                last_results = query_df(
+                    "SELECT driver_id, constructor_id FROM results WHERE race_id = ?",
+                    (last_race_id,),
+                )
+
+                with get_connection() as conn:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO races (race_id, year, round, circuit_id, circuit_name, country, race_date)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (next_race_id, args.test_year, next_round, circuit_id, circuit_name, country, race_date),
+                    )
+
+                    # Insert dummy results so build_pre_race_features has a driver roster
+                    for _, row in last_results.iterrows():
+                        conn.execute(
+                            """INSERT OR IGNORE INTO results (race_id, driver_id, constructor_id, position, is_podium, status)
+                               VALUES (?, ?, ?, ?, ?, ?)""",
+                            (next_race_id, row["driver_id"], row["constructor_id"], 10, 0, "Pending"),
+                        )
+
+                inserted_temp = True
+                logger.info("Inserted temporary R%d data for prediction", next_round)
+            else:
+                logger.warning("R%d not found in schedule", next_round)
+
+        next_race_df = build_pre_race_features(args.test_year, next_round)
+
+        if not next_race_df.empty:
+            X_next, _ = get_X_y(next_race_df, "is_podium")
+            driver_ids = next_race_df["driver_id"].tolist()
+
+            podium_probs = model.predict_podium_proba(X_next)
+            prob_dict = dict(zip(driver_ids, podium_probs.tolist()))
+
+            top3 = sorted(prob_dict.items(), key=lambda x: x[1], reverse=True)[:3]
+
+            race_info_df = query_df(
+                "SELECT circuit_name, country FROM races WHERE race_id = ?",
+                (next_race_id,),
+            )
+            if not race_info_df.empty:
+                next_race_name = f"{race_info_df.iloc[0]['country']} GP (R{next_round})"
+            else:
+                next_race_name = f"R{next_round}"
+
+            forward_entry = {
+                "round": int(next_round),
+                "race_name": next_race_name,
+                "predicted": [d for d, _ in top3],
+                "actual": [],
+                "correct": -1,
+                "brier_score": -1,
+                "probabilities": {d: float(p) for d, p in prob_dict.items()},
+                "is_future": True,
+            }
+            all_metrics.append(forward_entry)
+
+            pred_str = ", ".join([d for d, _ in top3])
+            probs_str = ", ".join([f"{p*100:.1f}%" for _, p in top3])
+            print(f"\n{'='*80}")
+            print(f"FORWARD PREDICTION — R{next_round} ({next_race_name})")
+            print(f"{'='*80}")
+            print(f"  Predicted Podium: {pred_str}")
+            print(f"  Probabilities:    {probs_str}")
+        else:
+            logger.warning("Could not build features for R%d", next_round)
+
+        # Clean up temporary DB entries
+        if inserted_temp:
+            with get_connection() as conn:
+                conn.execute("DELETE FROM results WHERE race_id = ?", (next_race_id,))
+                conn.execute("DELETE FROM races WHERE race_id = ?", (next_race_id,))
+            logger.info("Cleaned up temporary R%d DB entries", next_round)
+
+    except Exception as exc:
+        logger.warning("Forward prediction for R%d failed: %s", next_round, exc)
+        import traceback
+        traceback.print_exc()
 
     # Save results for dashboard
     out_dir = Path(__file__).resolve().parent.parent / "data"

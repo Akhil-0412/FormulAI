@@ -134,7 +134,16 @@ def build_pre_race_features(year: int, round_number: int) -> pd.DataFrame:
     total_rounds = query_df(
         "SELECT MAX(round) as max_round FROM races WHERE year = ?", (year,)
     )
-    max_round = total_rounds.iloc[0]["max_round"] if not total_rounds.empty else 24
+    try:
+        _raw = total_rounds.iloc[0]["max_round"] if not total_rounds.empty else None
+        if isinstance(_raw, bytes):
+            max_round = int.from_bytes(_raw, 'little') if _raw else 24
+        elif _raw is not None and not (isinstance(_raw, float) and np.isnan(_raw)):
+            max_round = int(_raw)
+        else:
+            max_round = 24
+    except (ValueError, TypeError):
+        max_round = 24
 
     rows = []
     for entry in roster:

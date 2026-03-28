@@ -20,6 +20,7 @@ interface BacktestRace {
     correct: number;
     brier_score: number;
     probabilities: Record<string, number>;
+    is_future?: boolean;
 }
 
 interface FullRaceWeather {
@@ -143,7 +144,7 @@ export default function PredictionsPage() {
     const [showParams, setShowParams] = useState(false);
 
     useEffect(() => {
-        fetch("/data/rolling_backtest_2025.json")
+        fetch("/data/rolling_backtest_2026.json")
             .then(res => res.json())
             .then(data => setBacktestData(data))
             .catch(err => console.error("Backtest load failed:", err));
@@ -162,7 +163,7 @@ export default function PredictionsPage() {
         try {
             // Using 2025 R1 as proxy for 2026 R1 Australia
             const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-            const res = await fetch(`${baseUrl}/api/v1/predict/2025/1/full-race`);
+            const res = await fetch(`${baseUrl}/api/v1/predict/2026/1/full-race`);
             const data: FullRaceResponse = await res.json();
 
             clearInterval(interval);
@@ -179,13 +180,17 @@ export default function PredictionsPage() {
         }
     };
 
-    // Backtest aggregate stats
-    const totalCorrect = backtestData.reduce((s, r) => s + r.correct, 0);
-    const totalPossible = backtestData.length * 3;
+    // Separate completed and future races
+    const completedRaces = backtestData.filter(r => !r.is_future);
+    const futureRaces = backtestData.filter(r => r.is_future);
+
+    // Backtest aggregate stats (only completed races)
+    const totalCorrect = completedRaces.reduce((s, r) => s + r.correct, 0);
+    const totalPossible = completedRaces.length * 3;
     const overallAccuracy = totalPossible > 0 ? ((totalCorrect / totalPossible) * 100).toFixed(1) : "0";
-    const perfectRaces = backtestData.filter(r => r.correct === 3).length;
-    const avgBrier = backtestData.length > 0
-        ? (backtestData.reduce((s, r) => s + r.brier_score, 0) / backtestData.length).toFixed(4) : "0";
+    const perfectRaces = completedRaces.filter(r => r.correct === 3).length;
+    const avgBrier = completedRaces.length > 0
+        ? (completedRaces.reduce((s, r) => s + r.brier_score, 0) / completedRaces.length).toFixed(4) : "0";
 
     const formatDriverId = (id: string) => {
         if (!id) return "---";
@@ -400,15 +405,15 @@ export default function PredictionsPage() {
             </section>
 
             {/* ═════════════════════════════════════════════════════════════
-               MODEL VALIDATION — 2025 Backtest
+               MODEL VALIDATION — 2026 Backtest
                ═════════════════════════════════════════════════════════════ */}
             <section className="flex flex-col gap-6 pt-8 border-t border-white/10">
                 <div className="flex items-center gap-3">
                     <TrendingUp className="w-6 h-6 text-emerald-400" />
-                    <h2 className="text-2xl font-bold text-white">Model Validation — 2025 Season (Unseen Data)</h2>
+                    <h2 className="text-2xl font-bold text-white">Model Validation — 2026 Season (Unseen Data)</h2>
                 </div>
                 <p className="text-f1-muted text-sm -mt-4">
-                    Trained on 2018–2024 · Rolling retrain after each race · Predicting the 2025 season the model has never seen
+                    Trained on 2018–2025 · Rolling retrain after each race · Predicting the 2026 season the model has never seen
                 </p>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -426,13 +431,51 @@ export default function PredictionsPage() {
                     </div>
                     <div className="glass-panel rounded-2xl p-4 text-center">
                         <p className="text-xs text-f1-muted uppercase tracking-wider mb-1">Races Evaluated</p>
-                        <p className="text-3xl font-black text-white font-mono">{backtestData.length}</p>
+                        <p className="text-3xl font-black text-white font-mono">{completedRaces.length}</p>
                     </div>
                 </div>
 
+                {/* ── UPCOMING RACE PREDICTION ── */}
+                {futureRaces.map((race) => (
+                    <div key={race.round} className="relative mt-4 p-6 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-amber-900/20 via-transparent to-orange-900/10 shadow-[0_0_30px_rgba(245,158,11,0.15)]">
+                        <div className="absolute -top-3 left-6 px-3 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full">
+                            <span className="text-xs font-black text-black uppercase tracking-wider">🔮 Upcoming Race Prediction</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-amber-500/20 pb-3 mt-2">
+                            <h3 className="text-xl font-black text-amber-300 italic">{race.race_name}</h3>
+                            <span className="text-xs text-amber-400/80 font-mono">Trained on R1–R{race.round - 1} data</span>
+                        </div>
+                        <h4 className="text-xs text-amber-400/60 uppercase tracking-widest text-center font-bold mt-4 mb-3">Predicted Podium</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {race.predicted.map((driverId, idx) => {
+                                const drv = getDriverInfo(driverId);
+                                const prob = race.probabilities?.[driverId] || 0;
+                                const logo = TEAM_LOGOS[drv.team];
+                                const medals: Record<number, string> = { 0: "🥇", 1: "🥈", 2: "🥉" };
+                                return (
+                                    <div key={idx} className="flex items-center gap-3 p-4 rounded-xl glass-panel border border-amber-500/20 hover:border-amber-400/40 transition-all hover:shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                                        <div className="text-2xl">{medals[idx]}</div>
+                                        <div className={`relative w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400/50`}>
+                                            {drv.img ? <img src={drv.img} alt={drv.name} className="w-full h-full object-cover object-top" /> : <div className="w-full h-full bg-white/10 flex items-center justify-center text-xl">👤</div>}
+                                        </div>
+                                        <div className="flex flex-col flex-1 min-w-0">
+                                            <span className="font-bold text-white truncate">{drv.name}</span>
+                                            <div className="flex gap-2 items-center">
+                                                {logo && <img src={logo} className="h-3 object-contain brightness-0 invert opacity-60" alt={drv.team} />}
+                                                <span className="text-[10px] text-f1-muted uppercase tracking-wider truncate">{drv.team}</span>
+                                            </div>
+                                        </div>
+                                        <span className="text-lg font-mono font-black text-amber-400">{(prob * 100).toFixed(1)}%</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+
                 {/* Backtest race-by-race with VS layout */}
                 <div className="flex flex-col gap-8 mt-2">
-                    {backtestData.map((race) => (
+                    {completedRaces.map((race) => (
                         <div key={race.round} className="flex flex-col gap-4 relative">
                             <div className="flex justify-between items-center border-b border-white/10 pb-2">
                                 <h3 className="text-xl font-black text-white italic">{race.race_name}</h3>
