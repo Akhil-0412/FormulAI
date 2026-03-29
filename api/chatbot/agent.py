@@ -124,27 +124,44 @@ def chat_with_agent(message: str, thread_id: str = "default_thread") -> Dict[str
         
     config = {"configurable": {"thread_id": thread_id}}
     
-    events = agent_app.stream(
-        {"messages": [("user", message)]},
-        config,
-        stream_mode="values"
-    )
-    
-    final_state = None
-    for event in events:
-        final_state = event
-        
-    last_msg = final_state["messages"][-1]
     try:
-        data = json.loads(last_msg.content)
-        # Ensure fallback metadata
-        if "metadata" not in data or not data["metadata"]:
-            data["metadata"] = {"timestamp": datetime.datetime.utcnow().isoformat() + "Z", "session": "ParcFermé AI", "entities": []}
-        return data
+        events = agent_app.stream(
+            {"messages": [("user", message)]},
+            config,
+            stream_mode="values"
+        )
+        
+        final_state = None
+        for event in events:
+            final_state = event
+            
+        last_msg = final_state["messages"][-1]
+        try:
+            data = json.loads(last_msg.content)
+            # Ensure fallback metadata
+            if "metadata" not in data or not data["metadata"]:
+                data["metadata"] = {"timestamp": datetime.datetime.utcnow().isoformat() + "Z", "session": "ParcFermé AI", "entities": []}
+            return data
+        except Exception as e:
+            return {
+                "text_response": last_msg.content,
+                "metadata": {"timestamp": datetime.datetime.utcnow().isoformat() + "Z", "session": "Fallback Agent", "entities": []},
+                "visualizations": [],
+                "tables": []
+            }
+            
     except Exception as e:
+        error_str = str(e)
+        if "429" in error_str or "rate limit" in error_str.lower():
+            return {
+                "text_response": "⚠️ **Telemetry Overload!** ParcFermé AI is currently processing too many complex requests (Groq TPM rate limit reached). Please wait 60 seconds and try again.",
+                "metadata": {"timestamp": datetime.datetime.utcnow().isoformat() + "Z", "session": "System Defense", "entities": []},
+                "visualizations": [],
+                "tables": []
+            }
         return {
-            "text_response": last_msg.content,
-            "metadata": {"timestamp": datetime.datetime.utcnow().isoformat() + "Z", "session": "Fallback Agent", "entities": []},
+            "text_response": f"⚠️ **Neural Pathway Fault:** An unexpected error crashed the agent thread: `{error_str}`",
+            "metadata": {"timestamp": datetime.datetime.utcnow().isoformat() + "Z", "session": "System Defense", "entities": []},
             "visualizations": [],
             "tables": []
         }
