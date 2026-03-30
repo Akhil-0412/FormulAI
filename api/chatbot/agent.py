@@ -66,7 +66,13 @@ def call_model(state: State):
         "3. Include relevant driver ID tokens (e.g. DRV_HAM, DRV_VER, DRV_NOR) in your reasoning so the formatter can extract them.\n"
     )
     
-    messages = [{"role": "system", "content": system_prompt}] + state["messages"]
+    # Prune conversation history to the last 6 messages to strictly avoid Groq 6000 TPM limit (413 errors)
+    recent_messages = state["messages"][-6:] if len(state["messages"]) > 6 else state["messages"]
+    # Ensure the truncated list doesn't start with a dangling ToolMessage which breaks LLM strict parsers
+    while recent_messages and getattr(recent_messages[0], "type", "") == "tool":
+        recent_messages.pop(0)
+
+    messages = [{"role": "system", "content": system_prompt}] + recent_messages
     response = llm_with_tools.invoke(messages)
     return {"messages": [response]}
     
