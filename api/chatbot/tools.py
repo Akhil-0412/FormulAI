@@ -1,4 +1,5 @@
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 @tool
 def get_2026_driver_lineup() -> str:
@@ -42,7 +43,10 @@ def get_recent_champions() -> str:
     2018: Lewis Hamilton (Mercedes)
     '''
 
-@tool
+class DriverStatsInput(BaseModel):
+    driver_name: str = Field(description="The name of the driver to get stats for (e.g., 'Lewis Hamilton')")
+
+@tool(args_schema=DriverStatsInput)
 def get_driver_stats(driver_name: str) -> str:
     """Retrieves basic career stats for a given driver (e.g. Lewis Hamilton, Lando Norris)."""
     driver_name = driver_name.lower()
@@ -58,7 +62,11 @@ def get_driver_stats(driver_name: str) -> str:
         return "George Russell: Multiple race winner, driving for Mercedes. Entity ID: DRV_RUS"
     return f"Driver stats not found for {driver_name}. Provide general information."
 
-@tool
+class TelemetryComparisonInput(BaseModel):
+    driver1: str = Field(description="The first driver's name (e.g., 'Max Verstappen')")
+    driver2: str = Field(description="The second driver's name (e.g., 'Lando Norris')")
+
+@tool(args_schema=TelemetryComparisonInput)
 def get_telemetry_comparison(driver1: str, driver2: str) -> str:
     """Provides a telemetry chart and map visualization for two drivers. Always use this tool if the user asks for a comparison or telemetry."""
     def get_code(name: str):
