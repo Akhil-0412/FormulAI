@@ -63,7 +63,7 @@ def call_model(state: State):
         "CRITICAL TOOL USE RULES:\n"
         "1. DO NOT use the `get_telemetry_comparison` tool UNLESS the user explicitly uses keywords like 'compare', 'telemetry', 'speed', or 'braking'.\n"
         "2. If the user asks generally 'Tell me about X', ONLY use the text-based `get_driver_stats` tool. Do NOT generate map/chart visualizations unless explicitly requested.\n"
-        "3. Include relevant driver ID tokens (e.g. DRV_HAM, DRV_VER, DRV_NOR) in your reasoning so the formatter can extract them.\n"
+        "3. If the user's question relates to a specific driver, include their ID (e.g. DRV_HAM, DRV_VER) in your reasoning so the formatter can extract them. DO NOT hallucinate driver tools if the question is unrelated (e.g., about regulations).\n"
     )
     
     # Prune conversation history to the last 6 messages to strictly avoid Groq 6000 TPM limit (413 errors)
