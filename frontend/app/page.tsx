@@ -36,15 +36,15 @@ function useCountdown(targetDate: string) {
 
 // --- Mock Data ---
 const TOP_DRIVERS = [
-  { name: "Max Verstappen", points: 425, team: "Red Bull", color: "#0600EF", img: "/assets/Teams/Red Bull Racing/2025redbullracingmaxver01right.avif" },
-  { name: "Lando Norris", points: 390, team: "McLaren", color: "#FF8000", img: "/assets/Teams/McLaren/2025mclarenlannor01right.avif" },
-  { name: "Charles Leclerc", points: 345, team: "Ferrari", color: "#E80020", img: "/assets/Teams/Ferrari/2025ferrarichalec01right.avif" },
+  { name: "Kimi Antonelli", points: 72, team: "Mercedes", color: "#00D2BE", img: "/assets/Teams/Mercedes/2025mercedesandant01right.avif" },
+  { name: "George Russell", points: 63, team: "Mercedes", color: "#00D2BE", img: "/assets/Teams/Mercedes/2025mercedesgeorus01right.avif" },
+  { name: "Charles Leclerc", points: 49, team: "Ferrari", color: "#E80020", img: "/assets/Teams/Ferrari/2025ferrarichalec01right.avif" },
 ];
 
 const TOP_CONSTRUCTORS = [
-  { name: "McLaren", points: 680, color: "#FF8000", logo: "/assets/Teams/McLaren/2025mclarenlogowhite.avif" },
-  { name: "Ferrari", points: 650, color: "#E80020", logo: "/assets/Teams/Ferrari/2025ferrarilogolight.avif" },
-  { name: "Red Bull Racing", points: 590, color: "#0600EF", logo: "/assets/Teams/Red Bull Racing/2025redbullracinglogowhite.avif" },
+  { name: "Mercedes", points: 135, color: "#00D2BE", logo: "/assets/Teams/Mercedes/2025mercedeslogowhite.avif" },
+  { name: "Ferrari", points: 90, color: "#E80020", logo: "/assets/Teams/Ferrari/2025ferrarilogolight.avif" },
+  { name: "McLaren", points: 56, color: "#FF8000", logo: "/assets/Teams/McLaren/2025mclarenlogowhite.avif" },
 ];
 
 export default function Home() {
@@ -172,7 +172,7 @@ export default function Home() {
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <MapPin className="w-5 h-5 text-f1-papaya" /> Event Spotlight
             </h3>
-            <span className="text-xs font-bold px-2 py-1 rounded bg-white/10 text-white/80 uppercase">Round 1</span>
+            <span className="text-xs font-bold px-2 py-1 rounded bg-white/10 text-white/80 uppercase">Round 4</span>
           </div>
 
           <div className="relative w-full h-48 bg-white/5 rounded-xl flex items-center justify-center p-4 border border-white/5">
@@ -216,7 +216,7 @@ export default function Home() {
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <Trophy className="w-5 h-5 text-f1-papaya" /> Defending Drivers
             </h3>
-            <span className="text-xs font-bold text-f1-muted uppercase">2026 Top 3</span>
+            <span className="text-xs font-bold text-f1-muted uppercase">2026 After R3</span>
           </div>
 
           <div className="flex flex-col gap-4">
@@ -255,7 +255,7 @@ export default function Home() {
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <Target className="w-5 h-5 text-f1-papaya" /> Constructors
             </h3>
-            <span className="text-xs font-bold text-f1-muted uppercase">2026 Final</span>
+            <span className="text-xs font-bold text-f1-muted uppercase">2026 After R3</span>
           </div>
 
           <div className="flex flex-col gap-4">

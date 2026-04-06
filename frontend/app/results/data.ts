@@ -13,7 +13,32 @@ export interface RaceResult {
     podium: PodiumFinish[];
 }
 
-export const RECENT_RESULTS: RaceResult[] = [];
+export const RECENT_RESULTS: RaceResult[] = [
+    {
+        race: "Japanese Grand Prix (2026)", date: "Mar 29, 2026", location: "Suzuka",
+        podium: [
+            { pos: 1, driver: "Kimi Antonelli", team: "Mercedes" as TeamName },
+            { pos: 2, driver: "Oscar Piastri", team: "McLaren" as TeamName },
+            { pos: 3, driver: "Charles Leclerc", team: "Ferrari" as TeamName }
+        ]
+    },
+    {
+        race: "Chinese Grand Prix (2026)", date: "Mar 15, 2026", location: "Shanghai",
+        podium: [
+            { pos: 1, driver: "Kimi Antonelli", team: "Mercedes" as TeamName },
+            { pos: 2, driver: "George Russell", team: "Mercedes" as TeamName },
+            { pos: 3, driver: "Lewis Hamilton", team: "Ferrari" as TeamName }
+        ]
+    },
+    {
+        race: "Australian Grand Prix (2026)", date: "Mar 08, 2026", location: "Melbourne",
+        podium: [
+            { pos: 1, driver: "George Russell", team: "Mercedes" as TeamName },
+            { pos: 2, driver: "Kimi Antonelli", team: "Mercedes" as TeamName },
+            { pos: 3, driver: "Charles Leclerc", team: "Ferrari" as TeamName }
+        ]
+    }
+];
 
 export const HISTORICAL_SEASONS = [
     {

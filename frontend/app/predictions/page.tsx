@@ -107,15 +107,19 @@ const DRIVER_DATA: Record<string, { name: string; team: string; img: string }> =
     stroll: { name: "Lance Stroll", team: "Aston Martin", img: "/assets/Teams/Aston Martin/astonmartinlanstr.avif" },
     gasly: { name: "Pierre Gasly", team: "Alpine", img: "/assets/Teams/Alpine/alpinepiegas.avif" },
     doohan: { name: "Franco Colapinto", team: "Alpine", img: "/assets/Teams/Alpine/alpinefracol.avif" },
+    colapinto: { name: "Franco Colapinto", team: "Alpine", img: "/assets/Teams/Alpine/alpinefracol.avif" },
     albon: { name: "Alex Albon", team: "Williams", img: "/assets/Teams/Williams/williamsalealb.avif" },
     sainz: { name: "Carlos Sainz", team: "Williams", img: "/assets/Teams/Williams/williamscarsai.avif" },
     ocon: { name: "Esteban Ocon", team: "Haas", img: "/assets/Teams/Haas F1 Team/2025haasestoco01right.avif" },
     bearman: { name: "Oliver Bearman", team: "Haas", img: "/assets/Teams/Haas F1 Team/2025haasolibea01right.avif" },
     tsunoda: { name: "Arvid Lindblad", team: "RB", img: "/assets/Teams/Racing Bulls/2026racingbullsarvlin01right.avif" },
+    arvid_lindblad: { name: "Arvid Lindblad", team: "RB", img: "/assets/Teams/Racing Bulls/2026racingbullsarvlin01right.avif" },
     hadjar: { name: "Isack Hadjar", team: "Red Bull Racing", img: "/assets/Teams/Red Bull Racing/2026redbullracingisahad01right.avif" },
     lawson: { name: "Liam Lawson", team: "RB", img: "/assets/Teams/Racing Bulls/2025racingbullslialaw01right.avif" },
     hulkenberg: { name: "Nico Hulkenberg", team: "Audi", img: "/assets/Teams/Audi/2026audinichul01right.avif" },
     bortoleto: { name: "Gabriel Bortoleto", team: "Audi", img: "/assets/Teams/Audi/2026audigabbor01right.avif" },
+    perez: { name: "Sergio Pérez", team: "Cadillac", img: "" },
+    bottas: { name: "Valtteri Bottas", team: "Cadillac", img: "" },
 };
 
 const getDriverInfo = (id: string) => DRIVER_DATA[id] || { name: id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), team: "Unknown", img: "" };

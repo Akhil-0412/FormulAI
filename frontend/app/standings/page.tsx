@@ -4,18 +4,28 @@ import Image from 'next/image';
 import { Trophy, Medal, Flag } from "lucide-react";
 
 const DRIVER_STANDINGS = [
-    { pos: 1, driver: "Max Verstappen", team: "Red Bull Racing", points: 412 },
-    { pos: 2, driver: "Charles Leclerc", team: "Ferrari", points: 368 },
-    { pos: 3, driver: "Lando Norris", team: "McLaren", points: 315 },
-    { pos: 4, driver: "George Russell", team: "Mercedes", points: 280 },
-    { pos: 5, driver: "Lewis Hamilton", team: "Ferrari", points: 245 },
+    { pos: 1, driver: "Kimi Antonelli", team: "Mercedes", points: 72 },
+    { pos: 2, driver: "George Russell", team: "Mercedes", points: 63 },
+    { pos: 3, driver: "Charles Leclerc", team: "Ferrari", points: 49 },
+    { pos: 4, driver: "Lewis Hamilton", team: "Ferrari", points: 41 },
+    { pos: 5, driver: "Lando Norris", team: "McLaren", points: 25 },
+    { pos: 6, driver: "Oscar Piastri", team: "McLaren", points: 21 },
+    { pos: 7, driver: "Oliver Bearman", team: "Haas", points: 17 },
+    { pos: 8, driver: "Pierre Gasly", team: "Alpine", points: 15 },
+    { pos: 9, driver: "Max Verstappen", team: "Red Bull Racing", points: 12 },
+    { pos: 10, driver: "Liam Lawson", team: "RB", points: 10 },
 ];
 
 const TEAM_STANDINGS = [
-    { pos: 1, team: "Ferrari", points: 613, color: "border-l-f1-red" },
-    { pos: 2, team: "Red Bull Racing", points: 580, color: "border-l-[#0600EF]" },
-    { pos: 3, team: "McLaren", points: 495, color: "border-l-f1-papaya" },
-    { pos: 4, team: "Mercedes", points: 410, color: "border-l-f1-teal" },
+    { pos: 1, team: "Mercedes", points: 135, color: "border-l-f1-teal" },
+    { pos: 2, team: "Ferrari", points: 90, color: "border-l-f1-red" },
+    { pos: 3, team: "McLaren", points: 56, color: "border-l-f1-papaya" },
+    { pos: 4, team: "Haas", points: 18, color: "border-l-[#B6BABD]" },
+    { pos: 5, team: "Alpine", points: 16, color: "border-l-[#0093CC]" },
+    { pos: 6, team: "Red Bull Racing", points: 16, color: "border-l-[#0600EF]" },
+    { pos: 7, team: "RB", points: 14, color: "border-l-[#6692FF]" },
+    { pos: 8, team: "Audi", points: 2, color: "border-l-[#FF0000]" },
+    { pos: 9, team: "Williams", points: 2, color: "border-l-[#64C4FF]" },
 ];
 
 const FOLDER_MAP: Record<string, string> = {
@@ -85,7 +95,7 @@ export default function StandingsPage() {
                 <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white italic tracking-tighter" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>
                     Championship Standings
                 </h1>
-                <p className="text-f1-muted text-lg italic tracking-wider font-semibold" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>Current 2026 Season layout.</p>
+                <p className="text-f1-muted text-lg italic tracking-wider font-semibold" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>After Round 3 — Japanese Grand Prix · Suzuka</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
