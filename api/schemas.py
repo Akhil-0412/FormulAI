@@ -160,3 +160,22 @@ class FullRacePredictionResponse(BaseModel):
     podium: list[str]
     confidence_level: str = "medium"
     n_simulations: int = 10000
+
+class NextRacePrediction(BaseModel):
+    name: str
+    date: str
+    prediction: list[str]
+
+class EvaluationHistoryItem(BaseModel):
+    race: str
+    predicted_podium: list[str]
+    actual_podium: list[str]
+    accuracy_score: float
+    processed_at: str
+
+class EvaluationSummaryResponse(BaseModel):
+    total_races: int
+    average_accuracy: float
+    last_updated: str
+    next_race: NextRacePrediction | None = None
+    history: list[EvaluationHistoryItem]

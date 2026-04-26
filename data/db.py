@@ -114,6 +114,15 @@ CREATE TABLE IF NOT EXISTS standings_snapshot (
     FOREIGN KEY (race_id) REFERENCES races(race_id)
 );
 
+CREATE TABLE IF NOT EXISTS predictions (
+    race_id         TEXT PRIMARY KEY,
+    predicted_podium TEXT,
+    actual_podium   TEXT,
+    accuracy_score  REAL,
+    processed_at    TEXT,
+    FOREIGN KEY (race_id) REFERENCES races(race_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_results_race ON results(race_id);
 CREATE INDEX IF NOT EXISTS idx_results_driver ON results(driver_id);
 CREATE INDEX IF NOT EXISTS idx_qualifying_race ON qualifying(race_id);
@@ -237,6 +246,15 @@ def upsert_practice(conn: sqlite3.Connection, practice: dict[str, Any]) -> None:
            (race_id, driver_id, session_type, best_lap_sec, avg_lap_sec, laps_completed)
            VALUES (:race_id, :driver_id, :session_type, :best_lap_sec, :avg_lap_sec, :laps_completed)""",
         practice,
+    )
+
+
+def upsert_prediction(conn: sqlite3.Connection, prediction: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO predictions
+           (race_id, predicted_podium, actual_podium, accuracy_score, processed_at)
+           VALUES (:race_id, :predicted_podium, :actual_podium, :accuracy_score, :processed_at)""",
+        prediction,
     )
 
 

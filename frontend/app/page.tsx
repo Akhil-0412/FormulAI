@@ -54,6 +54,8 @@ export default function Home() {
     targetDate: new Date().toISOString()
   });
 
+  const [evaluation, setEvaluation] = useState<any>(null);
+
   useEffect(() => {
     async function fetchSchedule() {
       try {
@@ -86,6 +88,18 @@ export default function Home() {
       }
     }
     fetchSchedule();
+
+    async function fetchEvaluation() {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://akhil-008-formulai-backend-api.hf.space";
+        const res = await fetch(`${apiUrl}/api/v1/evaluation`);
+        const data = await res.json();
+        setEvaluation(data);
+      } catch (err) {
+        console.error("Failed to fetch evaluation:", err);
+      }
+    }
+    fetchEvaluation();
   }, []);
 
   const countdown = useCountdown(upcomingRace.targetDate);
@@ -280,6 +294,85 @@ export default function Home() {
         </motion.div>
 
       </div>
+
+      {/* Performance Section */}
+      {evaluation && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Historical Performance */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            className="glass-card p-8 flex flex-col gap-6"
+          >
+            <div className="flex justify-between items-center border-b border-white/10 pb-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Target className="w-5 h-5 text-f1-papaya" /> Model Performance
+              </h3>
+              <span className="text-xs font-bold text-f1-muted uppercase">History</span>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                <span className="text-f1-muted text-sm font-semibold tracking-widest uppercase">Aggregate Accuracy</span>
+                <span className="text-3xl font-black text-white italic">{(evaluation.average_accuracy * 100).toFixed(1)}%</span>
+              </div>
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                <span className="text-f1-muted text-sm font-semibold tracking-widest uppercase">Races Evaluated</span>
+                <span className="text-2xl font-black text-white italic">{evaluation.total_races}</span>
+              </div>
+              {evaluation.history && evaluation.history.length > 0 && (
+                <div className="flex flex-col gap-2 mt-2 p-4 rounded-2xl bg-white/5 border border-f1-teal/30">
+                  <span className="text-xs font-bold text-f1-teal uppercase mb-1">Latest Completed: {evaluation.history[0].race}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-white/80 text-sm"><span className="font-bold text-f1-muted">Predicted:</span> {evaluation.history[0].predicted_podium.slice(0,3).join(", ").replace(/_/g, ' ')}</span>
+                    <span className="text-white/80 text-sm"><span className="font-bold text-f1-muted">Actual:</span> {evaluation.history[0].actual_podium.join(", ").replace(/_/g, ' ')}</span>
+                  </div>
+                  <div className="mt-2 text-right">
+                    <span className="text-xs font-bold text-white uppercase bg-white/10 px-2 py-1 rounded">Score: {(evaluation.history[0].accuracy_score * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Upcoming Race Prediction */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.6 }}
+            className="glass-card p-8 flex flex-col gap-6 relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+               <Flag className="w-48 h-48" />
+            </div>
+            <div className="flex justify-between items-center border-b border-white/10 pb-4 relative z-10">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Flag className="w-5 h-5 text-f1-red" /> AI Podium Prediction
+              </h3>
+              <span className="text-xs font-bold text-f1-muted uppercase">Upcoming</span>
+            </div>
+
+            {evaluation.next_race ? (
+              <div className="flex flex-col gap-4 relative z-10">
+                <p className="text-sm font-bold text-white/70 uppercase mb-1">{evaluation.next_race.name}</p>
+                {evaluation.next_race.prediction.slice(0,3).map((driver: string, idx: number) => (
+                  <div key={idx} className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
+                    <div className="w-8 font-black text-2xl text-f1-papaya italic">P{idx + 1}</div>
+                    <div className="flex flex-col flex-1 leading-tight">
+                      <span className="text-white font-bold capitalize">{driver.replace(/_/g, ' ')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-1 items-center justify-center p-4 relative z-10">
+                <p className="text-f1-muted italic">Prediction computing...</p>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

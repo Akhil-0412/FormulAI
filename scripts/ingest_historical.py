@@ -51,7 +51,14 @@ def main() -> None:
 
     logger.info("=== Done: ingested %d total races ===", total)
     client.close()
-
+    
+    # Run evaluation
+    logger.info("=== Running Sequential Evaluation ===")
+    try:
+        import scripts.evaluate_races as evaluate_races
+        evaluate_races.main()
+    except Exception as e:
+        logger.error("Evaluation failed: %s", e)
 
 if __name__ == "__main__":
     main()

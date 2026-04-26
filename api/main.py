@@ -27,7 +27,11 @@ from api.schemas import (
     ModelParameter,
     FullGridDriver,
     FullRacePredictionResponse,
+    EvaluationSummaryResponse,
+    EvaluationHistoryItem,
+    NextRacePrediction,
 )
+import json
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -764,6 +768,78 @@ def get_standings(year: int):
     # Return latest round's standings
     latest_race = df["race_id"].max()
     return df[df["race_id"] == latest_race].to_dict("records")
+
+
+@app.get("/api/v1/evaluation", response_model=EvaluationSummaryResponse)
+def get_evaluation_summary():
+    """Get historical evaluation metrics and next race prediction."""
+    # 1. Fetch history
+    history_df = query_df(
+        """SELECT p.*, r.circuit_name, r.year, r.round
+           FROM predictions p
+           JOIN races r ON p.race_id = r.race_id
+           ORDER BY p.processed_at DESC"""
+    )
+    
+    history = []
+    total_score = 0.0
+    for _, row in history_df.iterrows():
+        try:
+            pred_list = json.loads(row["predicted_podium"])
+            act_list = json.loads(row["actual_podium"])
+        except:
+            pred_list, act_list = [], []
+            
+        history.append(EvaluationHistoryItem(
+            race=row["race_id"],
+            predicted_podium=pred_list,
+            actual_podium=act_list,
+            accuracy_score=row["accuracy_score"],
+            processed_at=str(row["processed_at"])
+        ))
+        total_score += row["accuracy_score"]
+        
+    avg_acc = (total_score / len(history_df)) if not history_df.empty else 0.0
+    last_updated = str(history_df.iloc[0]["processed_at"]) if not history_df.empty else ""
+
+    # 2. Next Race Prediction
+    next_race_pred = None
+    next_race_df = query_df(
+        """SELECT * FROM races 
+           WHERE race_id NOT IN (SELECT race_id FROM results WHERE position <= 3)
+           ORDER BY year ASC, round ASC
+           LIMIT 1"""
+    )
+    if not next_race_df.empty and _model is not None and _model.is_fitted:
+        nxt = next_race_df.iloc[0]
+        y, r = nxt["year"], nxt["round"]
+        try:
+            race_df = build_pre_race_features(y, r)
+            if not race_df.empty:
+                X, _ = get_X_y(race_df, "is_podium")
+                driver_ids = race_df["driver_id"].tolist()
+                podium_probs = _model.predict_podium_proba(X)
+                pos_preds = _model.predict_position(X)
+                result = enforce_podium_constraints(
+                    dict(zip(driver_ids, podium_probs.tolist())),
+                    dict(zip(driver_ids, pos_preds.tolist()))
+                )
+                pred_podium = [str(p.driver_id) for p in result.podium]
+                next_race_pred = NextRacePrediction(
+                    name=nxt["circuit_name"],
+                    date=nxt["race_date"],
+                    prediction=pred_podium
+                )
+        except Exception as e:
+            logger.error("Failed to predict next race: %s", e)
+
+    return EvaluationSummaryResponse(
+        total_races=len(history_df),
+        average_accuracy=avg_acc,
+        last_updated=last_updated,
+        next_race=next_race_pred,
+        history=history
+    )
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────
