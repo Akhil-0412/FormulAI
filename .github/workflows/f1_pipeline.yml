@@ -1,0 +1,41 @@
+name: F1 Podium Predictor Pipeline
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write # Needed to commit the JSON files back to the repo
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: "0.2.x" # Or the latest stable version
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11" # Match your project version
+
+      - name: Install Dependencies
+        run: uv sync
+
+      - name: Run Automated Pipeline
+        run: uv run python scripts/automated_pipeline.py
+
+      - name: Commit Updated Predictions
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add frontend_v2/public/data/latest_prediction.json data/rolling_backtest_*.json
+          git commit -m "Auto-update F1 predictions & backtest data [skip ci]" || echo "No changes to commit"
+          git push
