@@ -1,0 +1,86 @@
+auxiliary_heads:
+  dnf_head:
+    enabled: true
+    learning_rate: 0.05
+    max_depth: 4
+    n_estimators: 200
+  pace_head:
+    enabled: true
+    learning_rate: 0.05
+    max_depth: 6
+    n_estimators: 250
+calibration:
+  method: isotonic
+  temporal_split: true
+cross_validation:
+  n_splits: 3
+  strategy: temporal
+data:
+  db_path: data/db/race_history.db
+  feature_cache_dir: data/feature_cache
+  test_year: 2026
+  train_end_year: 2024
+  train_start_year: 2014
+  val_year: 2025
+elo:
+  base_rating: 1500
+  k_decay_races: 40
+  k_max: 48
+  k_min: 16
+experiment:
+  name: ltr_v3
+  output_dir: reports/experiments
+  save_model_metadata: true
+  tags:
+  - production
+  - ltr
+  - lambdamart
+  - calibrated
+ltr:
+  ensemble:
+    blend_weight_xgb: 0.5
+    softmax_temperature: 3.0
+  lgb_ranker:
+    colsample_bytree: 0.8
+    learning_rate: 0.05
+    max_depth: 6
+    metric: ndcg
+    min_child_samples: 10
+    n_estimators: 500
+    ndcg_eval_at:
+    - 3
+    - 5
+    objective: lambdarank
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    subsample: 0.8
+  xgb_ranker:
+    colsample_bytree: 0.8
+    lambdarank_num_pair_per_sample: 8
+    lambdarank_pair_method: topk
+    learning_rate: 0.05
+    max_depth: 6
+    min_child_weight: 3
+    n_estimators: 500
+    objective: rank:ndcg
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    subsample: 0.8
+    tree_method: hist
+models:
+  ltr_ranker:
+    best_params:
+      blend_weight_xgb: 0.44200774965210876
+      colsample_bytree: 0.6932769748225209
+      lambdarank_num_pair_per_sample: 8
+      learning_rate: 0.054854639924186877
+      max_depth: 7
+      min_child_weight: 9
+      n_estimators: 179
+      subsample: 0.8958631605452677
+optimization:
+  enabled: true
+  engine: optuna
+  n_trials: 30
+  timeout_seconds: 600
+random_seed: 42

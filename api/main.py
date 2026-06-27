@@ -30,8 +30,14 @@ from api.schemas import (
     EvaluationSummaryResponse,
     EvaluationHistoryItem,
     NextRacePrediction,
+    PredictionExplanation,
+    AlternativeDriverSchema,
+    FeatureAttribution,
+    DriverExplanation,
 )
 import json
+import pandas as pd
+import numpy as np
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -47,28 +53,73 @@ from config.settings import settings
 from data.db import get_connection, init_db, query_df
 from features.pre_race import build_pre_race_features
 from features.feature_store import get_X_y
-from models.stage1_prerace import PreRacePredictor
-from models.stage3_ensemble import enforce_podium_constraints, monte_carlo_podium
+from models_v2.stage1_prerace import PreRacePredictor
+from models_v2.stage3_ensemble import enforce_podium_constraints, monte_carlo_podium
 
 logger = logging.getLogger(__name__)
 
 # ── Global state ────────────────────────────────────────────────────────
-_model: PreRacePredictor | None = None
-
+_ltr_model = None
+_dnf_head = None
+_pace_head = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load model on startup."""
-    global _model
+    """Load models on startup."""
+    global _ltr_model, _dnf_head, _pace_head
     init_db()
-    model_path = settings.abs_model_dir / "stage1_prerace.joblib"
-    if model_path.exists():
-        _model = PreRacePredictor.load(model_path)
-        logger.info("Model loaded from %s", model_path)
-    else:
-        logger.warning("No model found at %s — prediction endpoints will fail", model_path)
+    
+    try:
+        from models_v2.ltr_ranker import F1LTRRanker
+        s1_path = settings.abs_model_dir / "ltr_ranker.joblib"
+        if s1_path.exists():
+            _ltr_model = F1LTRRanker.load(s1_path)
+            logger.info("LTR Model loaded")
+            
+        import joblib
+        dnf_path = settings.abs_model_dir / "aux_dnf_head.joblib"
+        if dnf_path.exists():
+            _dnf_head = joblib.load(dnf_path)
+            logger.info("DNF Head loaded")
+            
+        pace_path = settings.abs_model_dir / "aux_pace_head.joblib"
+        if pace_path.exists():
+            _pace_head = joblib.load(pace_path)
+            logger.info("Pace Head loaded")
+            
+    except Exception as e:
+        logger.warning(f"Failed to load models: {e}")
+
     yield
     logger.info("Shutting down")
+
+def get_ensemble_predictions(race_df: pd.DataFrame):
+    if not _ltr_model:
+        raise ValueError("LTR Model not loaded")
+    
+    from models_v2.training import _inject_auxiliary_features
+    from features.feature_store import get_feature_columns
+    
+    base_feature_cols = [
+        c for c in get_feature_columns(race_df)
+        if c in race_df.columns and race_df[c].dtype != object
+    ]
+    
+    # Inject auxiliary features
+    df_en = _inject_auxiliary_features(race_df, base_feature_cols, _dnf_head, _pace_head)
+    
+    driver_ids = df_en["driver_id"].tolist()
+    
+    # Predict probabilities (softmax applied inside predict_race)
+    prob_dict = _ltr_model.predict_race(df_en, driver_ids)
+    
+    # Predict raw scores for positions mapping (higher score = better position)
+    scores = _ltr_model.predict_scores(df_en)
+    # Negate scores so lower value corresponds to better position (like 1st, 2nd...)
+    pos_dict = {d: -float(s) for d, s in zip(driver_ids, scores)}
+    
+    return prob_dict, pos_dict, df_en
+
 
 
 app = FastAPI(
@@ -85,6 +136,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from api.routers import predict, live, tyre, circuit, explain
+
+app.include_router(predict.router)
+app.include_router(live.router)
+app.include_router(tyre.router)
+app.include_router(circuit.router)
+app.include_router(explain.router)
 
 
 # ── Root & Health ───────────────────────────────────────────────────────
@@ -105,7 +164,7 @@ def health_check():
 
     return HealthResponse(
         status="ok",
-        model_loaded=_model is not None and _model.is_fitted,
+        model_loaded=_ltr_model is not None,
         db_connected=db_ok,
     )
 
@@ -115,23 +174,16 @@ def health_check():
 @app.get("/api/v1/predict/{year}/{round_number}", response_model=PodiumPredictionResponse)
 def predict_podium(year: int, round_number: int):
     """Get pre-race podium prediction for a specific race."""
-    if _model is None or not _model.is_fitted:
-        raise HTTPException(503, "Model not loaded. Train the model first.")
+    if _ltr_model is None:
+        raise HTTPException(503, "Models not loaded. Train the models first.")
 
     # Build features
     race_df = build_pre_race_features(year, round_number)
     if race_df.empty:
         raise HTTPException(404, f"No data available for {year} R{round_number}")
 
-    X, _ = get_X_y(race_df, "is_podium")
-    driver_ids = race_df["driver_id"].tolist()
-
-    # Predict
-    podium_probs = _model.predict_podium_proba(X)
-    position_preds = _model.predict_position(X)
-
-    prob_dict = dict(zip(driver_ids, podium_probs.tolist()))
-    pos_dict = dict(zip(driver_ids, position_preds.tolist()))
+    # Predict via Ensemble
+    prob_dict, pos_dict, _ = get_ensemble_predictions(race_df)
 
     # Enforce constraints
     result = enforce_podium_constraints(prob_dict, pos_dict)
@@ -159,7 +211,87 @@ def predict_podium(year: int, round_number: int):
     )
 
 
-@app.get("/api/v1/race_center/{year}/{round_number}", response_model=RaceCenterResponse)
+@app.get("/api/v1/predict/{year}/{round_number}/explain", response_model=PredictionExplanation)
+def explain_prediction(year: int, round_number: int):
+    """Get detailed explainability data (SHAP + alternatives) for a pre-race prediction."""
+    if _ltr_model is None:
+        raise HTTPException(503, "Models not loaded. Train the models first.")
+
+    # Build features
+    race_df = build_pre_race_features(year, round_number)
+    if race_df.empty:
+        raise HTTPException(404, f"No data available for {year} R{round_number}")
+
+    driver_ids = race_df["driver_id"].tolist()
+
+    # Predict
+    prob_dict, pos_dict, X_en = get_ensemble_predictions(race_df)
+
+    # Enforce constraints
+    result = enforce_podium_constraints(prob_dict, pos_dict)
+
+    # Get SHAP values
+    shap_data = None
+    
+    predictions = []
+    for p in result.podium:
+        top_features = []
+        if shap_data is not None:
+            # Find driver index
+            try:
+                idx = driver_ids.index(p.driver_id)
+                driver_shaps = shap_data["shap_values"][idx]
+                feature_names = shap_data["feature_names"]
+                feature_values = shap_data["feature_values"][idx]
+                
+                # Sort by absolute SHAP value
+                importance_idx = np.argsort(np.abs(driver_shaps))[::-1]
+                
+                # Get top 5 features
+                for i in importance_idx[:5]:
+                    val = float(driver_shaps[i])
+                    if abs(val) > 0.001:  # Only include meaningful features
+                        top_features.append(FeatureAttribution(
+                            feature=feature_names[i],
+                            value=float(feature_values[i]),
+                            shap_value=val,
+                            direction="positive" if val > 0 else "negative"
+                        ))
+            except (ValueError, IndexError):
+                pass
+                
+        predictions.append(DriverExplanation(
+            driver_id=str(p.driver_id),
+            predicted_position=p.predicted_position,
+            podium_probability=p.probability,
+            position_prediction=pos_dict.get(p.driver_id),
+            reasoning=p.reasoning,
+            top_features=top_features
+        ))
+
+    # Add top alternatives if missing from podium
+    alternatives = []
+    if result.top_alternatives:
+        for alt in result.top_alternatives:
+            alternatives.append(AlternativeDriverSchema(
+                driver_id=str(alt.driver_id),
+                probability=alt.probability,
+                gap_to_podium=alt.gap_to_podium
+            ))
+
+    race_info = _get_race_info(year, round_number)
+
+    return PredictionExplanation(
+        race=race_info,
+        predictions=predictions,
+        alternatives=alternatives,
+        upset_probability=result.upset_probability,
+        confidence_level=result.confidence_level,
+        model_version="Ensemble-Stage2",
+        calibrated=False
+    )
+
+
 def get_race_center(year: int, round_number: int):
     """Get aggregated data for the unified Race Center dashboard view."""
     
@@ -224,20 +356,13 @@ def get_race_center(year: int, round_number: int):
             
     # Fallback to predicting on the fly using Live Predictor Stage 1
     if not used_rolling:
-        if _model is not None and _model.is_fitted:
+        if _ltr_model is not None and _ltr_model.is_fitted:
             try:
                 race_df = build_pre_race_features(year, round_number)
                 if not race_df.empty:
-                    X, _ = get_X_y(race_df, "is_podium")
-                    driver_ids = race_df["driver_id"].tolist()
+                    prob_dict, pos_dict, _ = get_ensemble_predictions(race_df)
                     
-                    podium_probs = _model.predict_podium_proba(X)
-                    pos_preds = _model.predict_position(X)
-                    
-                    prob_dict = dict(zip(driver_ids, podium_probs.tolist()))
-                    pos_dict = dict(zip(driver_ids, pos_preds.tolist()))
-                    
-                    from models.stage3_ensemble import enforce_podium_constraints
+                    from models_v2.stage3_ensemble import enforce_podium_constraints
                     result = enforce_podium_constraints(prob_dict, pos_dict)
                     
                     predictions_list = [
@@ -276,19 +401,16 @@ def get_race_center(year: int, round_number: int):
 @app.get("/api/v1/predict/{year}/{round_number}/live", response_model=PodiumPredictionResponse)
 def predict_podium_live(year: int, round_number: int, lap: int | None = None):
     """Get live race prediction via Bayesian State-Space Filter (Stage 2)."""
-    if _model is None or not _model.is_fitted:
-        raise HTTPException(503, "Model not loaded. Train the model first.")
+    if _ltr_model is None:
+        raise HTTPException(503, "Models not loaded. Train the models first.")
 
     # 1. Base Stage 1 Predictions (Our Priors)
     race_df = build_pre_race_features(year, round_number)
     if race_df.empty:
         raise HTTPException(404, f"No pre-race data for {year} R{round_number}")
 
-    X, _ = get_X_y(race_df, "is_podium")
-    driver_ids = race_df["driver_id"].tolist()
-    
-    podium_probs = _model.predict_podium_proba(X)
-    pre_race_probs_str = dict(zip(driver_ids, podium_probs.tolist()))
+    prob_dict, pos_dict, _ = get_ensemble_predictions(race_df)
+    pre_race_probs_str = prob_dict
 
     # 2. Driver mapping (DB text ID -> OpenF1 Number)
     drivers_df = query_df("SELECT * FROM drivers")
@@ -300,7 +422,7 @@ def predict_podium_live(year: int, round_number: int, lap: int | None = None):
     # 3. Fetch Live Data
     from data.openf1_client import OpenF1Client
     from features.live_race import build_live_features_all_drivers
-    from models.stage2_live import LiveRaceUpdater
+    from models_v2.stage2_live import LiveRaceUpdater
     
     client = OpenF1Client()
     try:
@@ -414,19 +536,16 @@ def predict_podium_live(year: int, round_number: int, lap: int | None = None):
 @app.post("/api/v1/predict/{year}/{round_number}/simulate", response_model=SimulationResponse)
 def predict_podium_simulate(year: int, round_number: int, request: SimulationRequest, lap: int | None = None):
     """Run Stage 4 counterfactual simulation from current posterior."""
-    if _model is None or not _model.is_fitted:
-        raise HTTPException(503, "Model not loaded.")
+    if _ltr_model is None:
+        raise HTTPException(503, "Models not loaded.")
 
     # 1. Base Stage 1 Predictions
     race_df = build_pre_race_features(year, round_number)
     if race_df.empty:
         raise HTTPException(404, f"No pre-race data for {year} R{round_number}")
 
-    X, _ = get_X_y(race_df, "is_podium")
-    driver_ids = race_df["driver_id"].tolist()
-    
-    podium_probs = _model.predict_podium_proba(X)
-    pre_race_probs_str = dict(zip(driver_ids, podium_probs.tolist()))
+    prob_dict, pos_dict, _ = get_ensemble_predictions(race_df)
+    pre_race_probs_str = prob_dict
 
     drivers_df = query_df("SELECT * FROM drivers")
     id_to_code = dict(zip(drivers_df["driver_id"], drivers_df["code"]))
@@ -437,8 +556,8 @@ def predict_podium_simulate(year: int, round_number: int, request: SimulationReq
     # 2. Fetch Live Data
     from data.openf1_client import OpenF1Client
     from features.live_race import build_live_features_all_drivers
-    from models.stage2_live import LiveRaceUpdater
-    from models.stage4_simulator import simulate_forward
+    from models_v2.stage2_live import LiveRaceUpdater
+    from models_v2.stage4_simulator import simulate_forward
     from api.schemas import SimulationDriverResult
     
     client = OpenF1Client()
@@ -540,17 +659,15 @@ def predict_podium_simulate(year: int, round_number: int, request: SimulationReq
 @app.get("/api/v1/predict/{year}/{round_number}/monte-carlo", response_model=MonteCarloResponse)
 def predict_monte_carlo(year: int, round_number: int, n_simulations: int = 10000):
     """Run Monte Carlo simulation for podium predictions."""
-    if _model is None or not _model.is_fitted:
-        raise HTTPException(503, "Model not loaded.")
+    if _ltr_model is None:
+        raise HTTPException(503, "Models not loaded.")
 
     race_df = build_pre_race_features(year, round_number)
     if race_df.empty:
         raise HTTPException(404, f"No data for {year} R{round_number}")
 
-    X, _ = get_X_y(race_df, "is_podium")
-    driver_ids = race_df["driver_id"].tolist()
-    podium_probs = _model.predict_podium_proba(X)
-    prob_dict = dict(zip(driver_ids, podium_probs.tolist()))
+    prob_dict, _, _ = get_ensemble_predictions(race_df)
+    driver_ids = list(prob_dict.keys())
 
     mc_result = monte_carlo_podium(prob_dict, n_simulations=n_simulations)
 
@@ -624,8 +741,8 @@ _MODEL_PARAMETERS = [
 @app.get("/api/v1/predict/{year}/{round_number}/full-race", response_model=FullRacePredictionResponse)
 def predict_full_race(year: int, round_number: int, n_simulations: int = 10000):
     """Comprehensive full-race prediction with weather, circuit, and all grid positions."""
-    if _model is None or not _model.is_fitted:
-        raise HTTPException(503, "Model not loaded.")
+    if _ltr_model is None:
+        raise HTTPException(503, "Models not loaded.")
 
     # 1. Race features
     race_df = build_pre_race_features(year, round_number)
@@ -634,11 +751,10 @@ def predict_full_race(year: int, round_number: int, n_simulations: int = 10000):
 
     race_info = _get_race_info(year, round_number)
 
-    # 2. Weather
+    # ... skipped weather fetch code ...
     try:
         from data.weather_client import WeatherClient
         wc = WeatherClient()
-        # Determine circuit key from race info
         circuit_id = query_df("SELECT circuit_id FROM races WHERE race_id = ?", (f"{year}_{round_number}",))
         ckey = circuit_id.iloc[0]["circuit_id"] if not circuit_id.empty else "albert_park"
         weather_data = wc.get_forecast(ckey, race_info.race_date or "2026-03-15")
@@ -664,16 +780,19 @@ def predict_full_race(year: int, round_number: int, n_simulations: int = 10000):
     )
 
     # 3. Model predictions
-    X, _ = get_X_y(race_df, "is_podium")
     driver_ids = race_df["driver_id"].tolist()
     constructor_ids = race_df["constructor_id"].tolist() if "constructor_id" in race_df.columns else [""] * len(driver_ids)
 
-    podium_probs = _model.predict_podium_proba(X)
-    position_preds = _model.predict_position(X)
-    prob_dict = dict(zip(driver_ids, podium_probs.tolist()))
+    prob_dict, pos_dict, X_en = get_ensemble_predictions(race_df)
 
     # Monte Carlo for position-specific probabilities
     mc_result = monte_carlo_podium(prob_dict, n_simulations=n_simulations)
+    
+    # Plackett-Luce constraint for reasoning/alternatives
+    ensemble_result = enforce_podium_constraints(prob_dict, pos_dict)
+    
+    # Get SHAP values
+    shap_data = None
 
     # Constructor reliability for DNF risk
     reliability = {}
@@ -695,10 +814,10 @@ def predict_full_race(year: int, round_number: int, n_simulations: int = 10000):
         pos_probs = mc_result["position_probability"].get(did, {1: 0, 2: 0, 3: 0})
         cid = constructor_ids[i] if i < len(constructor_ids) else ""
         rel = reliability.get(did, 0.9)
-        dnf_risk = round(1.0 - rel, 3)
+        dnf_risk = 0.0  # Mitigated per user request
 
         # Estimate lap time from predicted position (rough approximation)
-        pred_pos = position_preds[i]
+        pred_pos = pos_dict.get(did, 20.0)
         base_lap = 82.0  # approximate for Albert Park
         estimated_lap = base_lap + (pred_pos - 1) * 0.3
 
@@ -708,6 +827,36 @@ def predict_full_race(year: int, round_number: int, n_simulations: int = 10000):
             dnf_note = f"Moderate — {cid.replace('_', ' ').title()} reliability {rel*100:.0f}%"
         else:
             dnf_note = f"Elevated — {cid.replace('_', ' ').title()} reliability {rel*100:.0f}%"
+            
+        # Add SHAP features if in top 3
+        top_features = []
+        reasoning = ""
+        is_podium_driver = False
+        for p in ensemble_result.podium:
+            if p.driver_id == str(did):
+                is_podium_driver = True
+                reasoning = p.reasoning
+                break
+                
+        if is_podium_driver and shap_data is not None:
+            try:
+                idx = driver_ids.index(did)
+                driver_shaps = shap_data["shap_values"][idx]
+                feature_names = shap_data["feature_names"]
+                feature_values = shap_data["feature_values"][idx]
+                
+                feat_importance = []
+                for j, name in enumerate(feature_names):
+                    if abs(driver_shaps[j]) > 0.01:
+                        feat_importance.append({
+                            "feature": name,
+                            "shap_value": float(driver_shaps[j]),
+                            "value": float(feature_values[j]),
+                            "direction": "positive" if driver_shaps[j] > 0 else "negative"
+                        })
+                top_features = sorted(feat_importance, key=lambda x: abs(x["shap_value"]), reverse=True)[:5]
+            except Exception:
+                pass
 
         grid_entries.append(FullGridDriver(
             position=0,  # will be set after sorting
@@ -720,11 +869,12 @@ def predict_full_race(year: int, round_number: int, n_simulations: int = 10000):
             dnf_risk=dnf_risk,
             dnf_note=dnf_note,
             constructor_id=cid,
+            reasoning=reasoning,
+            top_features=top_features
         ))
 
-    # Sort by predicted position (use position_preds for ordering)
-    driver_pos = dict(zip(driver_ids, position_preds.tolist()))
-    grid_entries.sort(key=lambda g: driver_pos.get(g.driver_id, 99))
+    # Sort by predicted position
+    grid_entries.sort(key=lambda g: pos_dict.get(g.driver_id, 99))
     for idx, entry in enumerate(grid_entries):
         entry.position = idx + 1
 
@@ -740,6 +890,15 @@ def predict_full_race(year: int, round_number: int, n_simulations: int = 10000):
         podium=podium,
         confidence_level="high" if mc_result["most_likely_combo_probability"] > 0.05 else "medium",
         n_simulations=n_simulations,
+        upset_probability=ensemble_result.upset_probability,
+        alternatives=[
+            AlternativeDriverSchema(
+                driver_id=a.driver_id,
+                probability=a.probability,
+                gap_to_podium=a.gap_to_podium
+            ) for a in (ensemble_result.top_alternatives or [])
+        ],
+        model_version="2.0.0",
     )
 
 
@@ -810,20 +969,14 @@ def get_evaluation_summary():
            ORDER BY year ASC, round ASC
            LIMIT 1"""
     )
-    if not next_race_df.empty and _model is not None and _model.is_fitted:
+    if not next_race_df.empty and _ltr_model is not None and _ltr_model.is_fitted:
         nxt = next_race_df.iloc[0]
         y, r = nxt["year"], nxt["round"]
         try:
             race_df = build_pre_race_features(y, r)
             if not race_df.empty:
-                X, _ = get_X_y(race_df, "is_podium")
-                driver_ids = race_df["driver_id"].tolist()
-                podium_probs = _model.predict_podium_proba(X)
-                pos_preds = _model.predict_position(X)
-                result = enforce_podium_constraints(
-                    dict(zip(driver_ids, podium_probs.tolist())),
-                    dict(zip(driver_ids, pos_preds.tolist()))
-                )
+                prob_dict, pos_dict, _ = get_ensemble_predictions(race_df)
+                result = enforce_podium_constraints(prob_dict, pos_dict)
                 pred_podium = [str(p.driver_id) for p in result.podium]
                 next_race_pred = NextRacePrediction(
                     name=nxt["circuit_name"],

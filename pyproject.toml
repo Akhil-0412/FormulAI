@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "f1-podium-predictor"
-version = "0.1.0"
+version = "0.2.0"
 description = "Multi-stage ML pipeline for predicting Formula 1 podium finishers"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,6 +32,16 @@ dependencies = [
     "langchain>=0.2.0",
     "langchain-groq>=0.1.0",
     "langgraph>=0.1.0",
+    "catboost>=1.2.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.66.0",
+    "torch>=2.2",
+    "mlflow>=2.12",
+    "redis>=5.0",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "numba>=0.59.0",
+    "llvmlite>=0.42.0"
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,3 @@
+{
+    "installCommand": "node download_lfs.js && npm install"
+}

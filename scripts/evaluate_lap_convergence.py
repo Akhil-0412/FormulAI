@@ -15,9 +15,9 @@ from data.openf1_client import OpenF1Client
 from features.pre_race import build_pre_race_features
 from features.feature_store import get_X_y
 from features.live_race import build_live_features_all_drivers
-from models.stage1_prerace import PreRacePredictor
-from models.stage2_live import LiveRaceUpdater
-from models.stage3_ensemble import enforce_podium_constraints
+from models_v2.stage1_prerace import PreRacePredictor
+from models_v2.stage2_live import LiveRaceUpdater
+from models_v2.stage3_ensemble import enforce_podium_constraints
 
 logging.basicConfig(
     level=logging.INFO,

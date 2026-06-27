@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 from data.db import query_df
 from utils.theme import apply_global_theme
@@ -61,6 +62,6 @@ if not df_tracks.empty:
         st.info("Track map asset not found.")
         
     st.divider()
-    st.dataframe(df_tracks, hide_index=True, use_container_width=True)
+    st.dataframe(df_tracks, hide_index=True, width='stretch')
 else:
     st.info("No track data available.")

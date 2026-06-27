@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from models.train import train_with_temporal_cv
+from models_v2.train import train_with_temporal_cv
 
 logging.basicConfig(
     level=logging.INFO,

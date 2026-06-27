@@ -132,6 +132,11 @@ class OpenF1Client:
         """Get race control messages (safety cars, flags, penalties)."""
         return self._get("/race_control", params={"session_key": session_key})
 
+    def get_safety_car_events(self, session_key: int) -> list[dict]:
+        """Get safety car and VSC events specifically from race control."""
+        msgs = self.get_race_control(session_key)
+        return [m for m in msgs if "SAFETY CAR" in str(m.get("message", "")).upper() or "VSC" in str(m.get("message", "")).upper()]
+
     # ── Weather ─────────────────────────────────────────────────────────
 
     def get_weather(self, session_key: int) -> list[dict]:

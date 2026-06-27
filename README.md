@@ -9,13 +9,12 @@ pinned: false
 
 # 🏎️ F1 Podium Predictor
 
-Multi-stage ML pipeline for predicting Formula 1 podium finishers using historical and real-time data.
+Multi-stage ML pipeline for predicting Formula 1 podium finishers using historical telemetry, live data, and state-of-the-art Learning-to-Rank (LTR) algorithms.
 
 ## Architecture
 
 ```
-Stage 1 (Pre-Race) → Stage 2 (Live) → Stage 3 (Ensemble + Constraints)
-  XGBoost + LightGBM    Bayesian Updater    Exactly 3 drivers + Monte Carlo
+Auxiliary Deep Heads (DNF & Pace) → LTR Ensemble (XGBoost/LightGBM) → Softmax Calibration
 ```
 
 **Data Sources:** FastF1 • Jolpica API • OpenF1 API • Open-Meteo
@@ -33,33 +32,34 @@ cp .env.example .env
 ### 2. Ingest Historical Data
 
 ```bash
-python scripts/ingest_historical.py --start-year 2018 --end-year 2024
+python scripts/ingest_historical.py --start-year 2014 --end-year 2024
 ```
 
 ### 3. Train Model
 
 ```bash
-# With Optuna hyperparameter optimization (~20 min)
-python scripts/train_model.py --train-start 2018 --train-end 2023 --val-year 2024
+# Hyperparameter tuning across 200 trials maximizing NDCG@3 (~45 min)
+python scripts/deep_tune.py
 
-# Quick training (no optimization, ~2 min)
-python scripts/train_model.py --no-optimize
+# Final training (compiles ltr_ranker.joblib from config)
+python -m models_v2.training --no-optimize
 ```
 
 ### 4. Backtest
 
 ```bash
-python scripts/backtest.py --test-year 2024
+python scripts/rolling_backtest.py --test-year 2024
 ```
 
-### 5. Run API + Dashboard
+### 5. Run API + Next.js Intelligence Center
 
 ```bash
-# API
-uvicorn api.main:app --reload --port 8000
+# API (Terminal 1)
+uv run uvicorn api.main:app --reload --port 8000
 
-# Dashboard (separate terminal)
-streamlit run dashboard/app.py
+# Frontend Next.js Dashboard (Terminal 2)
+cd frontend_v2
+npm run dev
 ```
 
 ### Or via Docker
@@ -73,10 +73,11 @@ docker-compose up --build
 | Endpoint | Description |
 |---|---|
 | `GET /health` | Health check |
-| `GET /api/v1/predict/{year}/{round}` | Pre-race podium prediction |
-| `GET /api/v1/predict/{year}/{round}/monte-carlo` | Monte Carlo simulation |
+| `GET /api/v1/predict/{year}/{round}/full-race` | Native LTR predictions + Plackett-Luce upset likelihoods |
+| `GET /api/v1/predict/{year}/{round}/live` | LTR prior + Bayesian live updates (Live telemetry) |
+| `GET /api/v1/predict/{year}/{round}/simulate` | LTR prior + Counterfactual modifiers |
 | `GET /api/v1/races/{year}` | Race calendar |
-| `GET /api/v1/standings/{year}` | Championship standings |
+| `GET /api/v1/evaluation` | Historical Backtest Accuracy |
 
 ## Features Engineered (25+)
 
@@ -85,13 +86,14 @@ docker-compose up --build
 - **Standings:** driver & constructor championship position/points
 - **Constructor:** reliability rate, teammate qualifying gap
 - **Context:** circuit type, overtake difficulty, home race, season progress, weather
+- **Elo System:** head-to-head dynamic rankings
 
 ## Model Architecture
 
-- **Head A (Classifier):** XGBoost binary → P(podium | driver, race)
-- **Head B (Regressor):** LightGBM → predicted finish position
-- **Constraint Enforcement:** Exactly 3 drivers, ranked P1/P2/P3
-- **Monte Carlo:** 10K simulations for confidence intervals and combo probabilities
+- **Auxiliary Heads:** XGBClassifier (DNF Prob) & XGBRegressor (Pace Delta)
+- **LTR Ranker:** XGBoost (rank:ndcg) + LightGBM (lambdarank) optimized for NDCG@3
+- **Softmax:** Ranking scores mapped to true probabilities summing to 1.0 across the grid
+- **Monte Carlo:** 10K simulations for Plackett-Luce upset probabilities
 
 ## Tests
 
@@ -101,17 +103,14 @@ pytest tests/ -v
 
 ## Automation (Cron Scheduling)
 
-To automatically ingest the latest race data and retrain models in production, you can set up cron jobs. 
-Since `scripts/ingest_historical.py` supports the `--latest` flag, it will dynamically fetch the current season's data.
-
-Add the following to your crontab (`crontab -e`):
+To automatically ingest the latest race data and retrain models in production:
 
 ```bash
 # Ingest latest race data every Monday at 02:00 AM
 0 2 * * 1 cd /path/to/F1PodiumPredictor && .venv/bin/python scripts/ingest_historical.py --latest >> /var/log/f1_ingest.log 2>&1
 
 # Retrain the model on the 1st of every month at 03:00 AM
-0 3 1 * * cd /path/to/F1PodiumPredictor && .venv/bin/python scripts/train_model.py --no-optimize >> /var/log/f1_train.log 2>&1
+0 3 1 * * cd /path/to/F1PodiumPredictor && .venv/bin/python -m models_v2.training --no-optimize >> /var/log/f1_train.log 2>&1
 ```
 
 ## Project Layout
@@ -121,9 +120,9 @@ F1PodiumPredictor/
 ├── config/           # Settings, circuit metadata
 ├── data/             # API clients, DB, ingestion
 ├── features/         # Feature engineering (pre-race + live)
-├── models/           # Stage 1/2/3, training, evaluation
+├── models_v2/           # LTR Ensemble, Training, Evaluation
 ├── api/              # FastAPI application
-├── dashboard/        # Streamlit dashboard
-├── scripts/          # CLI tools (ingest, train, backtest)
+├── frontend_v2/      # Next.js 14 Dashboard
+├── scripts/          # CLI tools (ingest, deep_tune, backtest)
 └── tests/            # Test suite
 ```

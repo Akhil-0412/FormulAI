@@ -249,3 +249,24 @@ def _safe_float(val: Any) -> float | None:
         return float(val)
     except (ValueError, TypeError):
         return None
+
+
+def backfill_seasons(start: int = 2018, end: int = 2025) -> None:
+    """Backfill historical data for multiple seasons.
+    
+    Args:
+        start: Start year (inclusive)
+        end: End year (inclusive)
+    """
+    client = JolpicaClient()
+    logger.info("Starting backfill for seasons %d to %d...", start, end)
+    
+    total_races = 0
+    for year in range(start, end + 1):
+        try:
+            count = ingest_season(year, client=client)
+            total_races += count
+        except Exception as exc:
+            logger.error("Failed to backfill season %d: %s", year, exc)
+            
+    logger.info("Backfill complete. Ingested %d total races across %d seasons.", total_races, end - start + 1)

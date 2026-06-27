@@ -1,0 +1,114 @@
+{
+  "circuits": {
+    "silverstone": {
+      "tyre_stress_index": 0.9,
+      "sc_probability": 0.42,
+      "vsc_probability": 0.35,
+      "overtake_difficulty": 0.5,
+      "drs_zones": 2,
+      "avg_pit_delta_s": 28.5,
+      "undercut_window_laps": 2,
+      "is_street_circuit": false,
+      "typical_compounds": ["C1", "C2", "C3"]
+    },
+    "monaco": {
+      "tyre_stress_index": 0.2,
+      "sc_probability": 0.65,
+      "vsc_probability": 0.45,
+      "overtake_difficulty": 0.95,
+      "drs_zones": 1,
+      "avg_pit_delta_s": 23.0,
+      "undercut_window_laps": 1,
+      "is_street_circuit": true,
+      "typical_compounds": ["C3", "C4", "C5"]
+    },
+    "spa": {
+      "tyre_stress_index": 0.8,
+      "sc_probability": 0.55,
+      "vsc_probability": 0.30,
+      "overtake_difficulty": 0.4,
+      "drs_zones": 2,
+      "avg_pit_delta_s": 24.5,
+      "undercut_window_laps": 3,
+      "is_street_circuit": false,
+      "typical_compounds": ["C2", "C3", "C4"]
+    },
+    "monza": {
+      "tyre_stress_index": 0.4,
+      "sc_probability": 0.38,
+      "vsc_probability": 0.25,
+      "overtake_difficulty": 0.55,
+      "drs_zones": 2,
+      "avg_pit_delta_s": 24.0,
+      "undercut_window_laps": 2,
+      "is_street_circuit": false,
+      "typical_compounds": ["C3", "C4", "C5"]
+    },
+    "zandvoort": {
+      "tyre_stress_index": 0.85,
+      "sc_probability": 0.52,
+      "vsc_probability": 0.35,
+      "overtake_difficulty": 0.8,
+      "drs_zones": 2,
+      "avg_pit_delta_s": 21.0,
+      "undercut_window_laps": 2,
+      "is_street_circuit": false,
+      "typical_compounds": ["C1", "C2", "C3"]
+    },
+    "baku": {
+      "tyre_stress_index": 0.5,
+      "sc_probability": 0.70,
+      "vsc_probability": 0.60,
+      "overtake_difficulty": 0.45,
+      "drs_zones": 2,
+      "avg_pit_delta_s": 21.5,
+      "undercut_window_laps": 2,
+      "is_street_circuit": true,
+      "typical_compounds": ["C3", "C4", "C5"]
+    },
+    "miami": {
+      "tyre_stress_index": 0.6,
+      "sc_probability": 0.50,
+      "vsc_probability": 0.35,
+      "overtake_difficulty": 0.55,
+      "drs_zones": 3,
+      "avg_pit_delta_s": 22.0,
+      "undercut_window_laps": 2,
+      "is_street_circuit": true,
+      "typical_compounds": ["C2", "C3", "C4"]
+    },
+    "albert_park": {
+      "tyre_stress_index": 0.5,
+      "sc_probability": 0.58,
+      "vsc_probability": 0.30,
+      "overtake_difficulty": 0.65,
+      "drs_zones": 4,
+      "avg_pit_delta_s": 20.5,
+      "undercut_window_laps": 2,
+      "is_street_circuit": true,
+      "typical_compounds": ["C3", "C4", "C5"]
+    },
+    "suzuka": {
+      "tyre_stress_index": 0.95,
+      "sc_probability": 0.40,
+      "vsc_probability": 0.25,
+      "overtake_difficulty": 0.7,
+      "drs_zones": 1,
+      "avg_pit_delta_s": 22.5,
+      "undercut_window_laps": 3,
+      "is_street_circuit": false,
+      "typical_compounds": ["C1", "C2", "C3"]
+    },
+    "cota": {
+      "tyre_stress_index": 0.8,
+      "sc_probability": 0.35,
+      "vsc_probability": 0.25,
+      "overtake_difficulty": 0.5,
+      "drs_zones": 2,
+      "avg_pit_delta_s": 20.0,
+      "undercut_window_laps": 2,
+      "is_street_circuit": false,
+      "typical_compounds": ["C2", "C3", "C4"]
+    }
+  }
+}

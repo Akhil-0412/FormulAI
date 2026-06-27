@@ -36,6 +36,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add frontend_v2/public/data/latest_prediction.json data/rolling_backtest_*.json
+          git add frontend/public/data/latest_prediction.json data/rolling_backtest_*.json
           git commit -m "Auto-update F1 predictions & backtest data [skip ci]" || echo "No changes to commit"
           git push

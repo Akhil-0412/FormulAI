@@ -127,6 +127,69 @@ CREATE INDEX IF NOT EXISTS idx_results_race ON results(race_id);
 CREATE INDEX IF NOT EXISTS idx_results_driver ON results(driver_id);
 CREATE INDEX IF NOT EXISTS idx_qualifying_race ON qualifying(race_id);
 CREATE INDEX IF NOT EXISTS idx_standings_race ON standings_snapshot(race_id);
+
+CREATE TABLE IF NOT EXISTS tyre_stints (
+    race_id         TEXT NOT NULL,
+    driver_id       TEXT NOT NULL,
+    stint_number    INTEGER NOT NULL,
+    compound        TEXT,
+    lap_start       INTEGER,
+    lap_end         INTEGER,
+    tyre_age        INTEGER,
+    avg_deg_rate    REAL,
+    PRIMARY KEY (race_id, driver_id, stint_number),
+    FOREIGN KEY (race_id) REFERENCES races(race_id)
+);
+
+CREATE TABLE IF NOT EXISTS lap_data (
+    race_id         TEXT NOT NULL,
+    driver_id       TEXT NOT NULL,
+    lap_number      INTEGER NOT NULL,
+    lap_time_ms     INTEGER,
+    position        INTEGER,
+    gap_to_leader_ms INTEGER,
+    pit_in          INTEGER DEFAULT 0,
+    pit_out         INTEGER DEFAULT 0,
+    sc_active       INTEGER DEFAULT 0,
+    vsc_active      INTEGER DEFAULT 0,
+    compound        TEXT,
+    tyre_age        INTEGER,
+    PRIMARY KEY (race_id, driver_id, lap_number),
+    FOREIGN KEY (race_id) REFERENCES races(race_id)
+);
+
+CREATE TABLE IF NOT EXISTS constructor_reliability (
+    constructor_id  TEXT NOT NULL,
+    race_id         TEXT NOT NULL,
+    dnf_rate_rolling5 REAL,
+    reliability_trend REAL,
+    PRIMARY KEY (constructor_id, race_id)
+);
+
+CREATE TABLE IF NOT EXISTS circuit_meta (
+    circuit_id      TEXT PRIMARY KEY,
+    tyre_stress_index REAL,
+    sc_probability  REAL,
+    vsc_probability REAL,
+    overtake_difficulty REAL,
+    drs_zones       INTEGER,
+    avg_pit_delta_s REAL,
+    undercut_window_laps INTEGER,
+    is_street_circuit INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS fp2_long_runs (
+    race_id         TEXT NOT NULL,
+    driver_id       TEXT NOT NULL,
+    compound        TEXT NOT NULL,
+    avg_pace_sec    REAL,
+    deg_rate_ms_lap REAL,
+    laps_in_run     INTEGER,
+    PRIMARY KEY (race_id, driver_id, compound)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tyre_stints_race ON tyre_stints(race_id, driver_id);
+CREATE INDEX IF NOT EXISTS idx_lap_data_race ON lap_data(race_id, driver_id);
 """
 
 
@@ -258,6 +321,55 @@ def upsert_prediction(conn: sqlite3.Connection, prediction: dict[str, Any]) -> N
     )
 
 
+def upsert_tyre_stint(conn: sqlite3.Connection, stint: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO tyre_stints
+           (race_id, driver_id, stint_number, compound, lap_start, lap_end, tyre_age, avg_deg_rate)
+           VALUES (:race_id, :driver_id, :stint_number, :compound, :lap_start, :lap_end, :tyre_age, :avg_deg_rate)""",
+        stint,
+    )
+
+
+def upsert_lap_data(conn: sqlite3.Connection, lap: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO lap_data
+           (race_id, driver_id, lap_number, lap_time_ms, position, gap_to_leader_ms,
+            pit_in, pit_out, sc_active, vsc_active, compound, tyre_age)
+           VALUES (:race_id, :driver_id, :lap_number, :lap_time_ms, :position, :gap_to_leader_ms,
+                   :pit_in, :pit_out, :sc_active, :vsc_active, :compound, :tyre_age)""",
+        lap,
+    )
+
+
+def upsert_constructor_reliability(conn: sqlite3.Connection, rel: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO constructor_reliability
+           (constructor_id, race_id, dnf_rate_rolling5, reliability_trend)
+           VALUES (:constructor_id, :race_id, :dnf_rate_rolling5, :reliability_trend)""",
+        rel,
+    )
+
+
+def upsert_circuit_meta(conn: sqlite3.Connection, meta: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO circuit_meta
+           (circuit_id, tyre_stress_index, sc_probability, vsc_probability,
+            overtake_difficulty, drs_zones, avg_pit_delta_s, undercut_window_laps, is_street_circuit)
+           VALUES (:circuit_id, :tyre_stress_index, :sc_probability, :vsc_probability,
+                   :overtake_difficulty, :drs_zones, :avg_pit_delta_s, :undercut_window_laps, :is_street_circuit)""",
+        meta,
+    )
+
+
+def upsert_fp2_long_run(conn: sqlite3.Connection, run: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO fp2_long_runs
+           (race_id, driver_id, compound, avg_pace_sec, deg_rate_ms_lap, laps_in_run)
+           VALUES (:race_id, :driver_id, :compound, :avg_pace_sec, :deg_rate_ms_lap, :laps_in_run)""",
+        run,
+    )
+
+
 # ── Query helpers ───────────────────────────────────────────────────────
 
 def query_df(sql: str, params: tuple = ()) -> pd.DataFrame:
@@ -307,3 +419,34 @@ def get_constructor_dnf_rate(constructor_id: str, last_n_races: int = 20) -> flo
         return 0.0
     finished = df["status"].apply(lambda s: s == "Finished" or (s and s.startswith("+"))).sum()
     return 1.0 - (finished / len(df))
+
+
+def get_driver_tyre_stints(driver_id: str, race_id: str) -> pd.DataFrame:
+    """Get a driver's tyre stints for a specific race."""
+    return query_df(
+        """SELECT * FROM tyre_stints
+           WHERE race_id = ? AND driver_id = ?
+           ORDER BY stint_number""",
+        (race_id, driver_id),
+    )
+
+
+def get_lap_sequence(race_id: str, driver_id: str) -> pd.DataFrame:
+    """Get the sequence of laps for a driver in a race."""
+    return query_df(
+        """SELECT * FROM lap_data
+           WHERE race_id = ? AND driver_id = ?
+           ORDER BY lap_number""",
+        (race_id, driver_id),
+    )
+
+
+def get_constructor_reliability_rolling(constructor_id: str, before_race_id: str) -> pd.DataFrame:
+    """Get rolling constructor reliability up to a certain race."""
+    return query_df(
+        """SELECT cr.* FROM constructor_reliability cr
+           JOIN races r ON cr.race_id = r.race_id
+           WHERE cr.constructor_id = ? AND r.race_id < ?
+           ORDER BY r.year DESC, r.round DESC LIMIT 1""",
+        (constructor_id, before_race_id),
+    )

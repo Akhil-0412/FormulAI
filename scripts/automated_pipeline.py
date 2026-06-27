@@ -57,7 +57,7 @@ async def main():
             full_race_response = predict_full_race(current_year, next_round, n_simulations=5000)
             
             # Serialize to JSON
-            out_dir = Path(__file__).resolve().parent.parent / "frontend_v2" / "public" / "data"
+            out_dir = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data"
             out_dir.mkdir(parents=True, exist_ok=True)
             out_file = out_dir / "latest_prediction.json"
             

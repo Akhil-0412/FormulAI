@@ -1,0 +1,12 @@
+{
+  "V2_Ensemble": {
+    "accuracy": 0.92,
+    "precision": 0.8181818181818182,
+    "recall": 0.6,
+    "f1": 0.6923076923076923,
+    "roc_auc": 0.9701960784313726,
+    "brier_score": 0.056107670068740845,
+    "race_level_avg_correct_out_of_3": 2.2,
+    "race_level_perfect_3": 0.2
+  }
+}

@@ -6,7 +6,7 @@ services:
     volumes:
       - ./data/cache:/app/data/cache
       - ./data/db:/app/data/db
-      - ./models/artifacts:/app/models/artifacts
+      - ./models_v2/artifacts:/app/models_v2/artifacts
     environment:
       - PYTHONPATH=/app
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload

@@ -16,8 +16,8 @@ from data.jolpica_client import JolpicaClient
 from config.settings import settings
 from features.pre_race import build_pre_race_features
 from features.feature_store import get_X_y
-from models.stage1_prerace import PreRacePredictor
-from models.stage3_ensemble import enforce_podium_constraints
+from models_v2.stage1_prerace import PreRacePredictor
+from models_v2.stage3_ensemble import enforce_podium_constraints
 
 logging.basicConfig(
     level=logging.INFO,

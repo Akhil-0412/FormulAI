@@ -1,0 +1,22 @@
+{
+  "trained_at": "2026-06-14T12:43:54.302777+00:00",
+  "train_duration_sec": 15.67,
+  "train_size": 829,
+  "n_features": 45,
+  "class_balance": {
+    "positive": 121,
+    "negative": 708
+  },
+  "classifier_type": "lightgbm",
+  "calibration_method": "none",
+  "optimized": false,
+  "train_metrics": {
+    "classifier_accuracy": 1.0,
+    "classifier_precision": 1.0,
+    "classifier_recall": 1.0,
+    "classifier_f1": 1.0,
+    "classifier_auc": 1.0,
+    "classifier_log_loss": 0.0026686980283499744,
+    "regressor_mae": 0.26511387108961426
+  }
+}

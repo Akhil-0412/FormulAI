@@ -156,3 +156,59 @@ def get_season_schedule(year: int) -> pd.DataFrame:
     cols = ["RoundNumber", "EventName", "Country", "Location", "EventDate", "EventFormat"]
     available = [c for c in cols if c in schedule.columns]
     return schedule[available].copy()
+
+
+def get_tyre_stints(year: int, round_number: int) -> pd.DataFrame:
+    """Extract tyre stints for a race.
+
+    Returns: DataFrame with DriverNumber, Stint, Compound, LapStart, LapEnd, TyreAge
+    """
+    session = load_session(year, round_number, "R")
+    laps = session.laps
+    if laps is None or laps.empty:
+        return pd.DataFrame()
+
+    stints = laps.groupby(["DriverNumber", "Stint"]).agg(
+        Compound=("Compound", "first"),
+        LapStart=("LapNumber", "min"),
+        LapEnd=("LapNumber", "max"),
+        TyreAge=("TyreLife", "max"),
+    ).reset_index()
+    return stints
+
+
+def get_fp2_long_runs(year: int, round_number: int) -> pd.DataFrame:
+    """Extract FP2 long run metrics.
+    Filters for >= 5 consecutive laps on the same compound without yellow flags.
+    """
+    session = load_session(year, round_number, "FP2")
+    laps = session.laps
+    if laps is None or laps.empty:
+        return pd.DataFrame()
+
+    # Simple placeholder logic for now
+    df = laps.copy()
+    if "LapTime" in df.columns:
+        df["LapTimeSec"] = df["LapTime"].apply(
+            lambda td: td.total_seconds() if pd.notna(td) and hasattr(td, "total_seconds") else None
+        )
+    return df
+
+
+def get_sector_times(year: int, round_number: int) -> pd.DataFrame:
+    """Extract sector-level qualifying splits."""
+    session = load_session(year, round_number, "Q")
+    laps = session.laps
+    if laps is None or laps.empty:
+        return pd.DataFrame()
+
+    # FastF1 has Sector1Time, Sector2Time, Sector3Time
+    cols = ["DriverNumber", "Sector1Time", "Sector2Time", "Sector3Time", "LapTime"]
+    available = [c for c in cols if c in laps.columns]
+    df = laps[available].copy()
+    for col in ["Sector1Time", "Sector2Time", "Sector3Time", "LapTime"]:
+        if col in df.columns:
+            df[col] = df[col].apply(
+                lambda td: td.total_seconds() if pd.notna(td) and hasattr(td, "total_seconds") else None
+            )
+    return df

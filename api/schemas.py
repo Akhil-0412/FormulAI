@@ -1,4 +1,4 @@
-"""Pydantic schemas for API request/response models."""
+"""Pydantic schemas for API request/response models_v2."""
 
 from __future__ import annotations
 
@@ -150,6 +150,8 @@ class FullGridDriver(BaseModel):
     dnf_risk: float = 0.05
     dnf_note: str = ""
     constructor_id: str = ""
+    reasoning: str = ""
+    top_features: list[FeatureAttribution] = []
 
 class FullRacePredictionResponse(BaseModel):
     race: RaceInfo
@@ -160,6 +162,8 @@ class FullRacePredictionResponse(BaseModel):
     podium: list[str]
     confidence_level: str = "medium"
     n_simulations: int = 10000
+    upset_probability: float = 0.0
+    alternatives: list[AlternativeDriverSchema] = []
 
 class NextRacePrediction(BaseModel):
     name: str
@@ -179,3 +183,54 @@ class EvaluationSummaryResponse(BaseModel):
     last_updated: str
     next_race: NextRacePrediction | None = None
     history: list[EvaluationHistoryItem]
+
+
+# ── Explainability Schemas ───────────────────────────────────────────────
+
+class FeatureAttribution(BaseModel):
+    """SHAP-based feature contribution to a driver's prediction."""
+    feature: str
+    value: float
+    shap_value: float
+    direction: Literal["positive", "negative"]
+
+
+class AlternativeDriverSchema(BaseModel):
+    """Non-podium driver close to the podium cutoff."""
+    driver_id: str
+    probability: float
+    gap_to_podium: float
+
+
+class DriverExplanation(BaseModel):
+    """Per-driver prediction explanation."""
+    driver_id: str
+    predicted_position: int | None = None
+    podium_probability: float
+    position_prediction: float | None = None
+    reasoning: str = ""
+    top_features: list[FeatureAttribution] = []
+
+
+class PredictionExplanation(BaseModel):
+    """Full prediction explanation response."""
+    race: RaceInfo
+    predictions: list[DriverExplanation]
+    alternatives: list[AlternativeDriverSchema] = []
+    upset_probability: float = 0.0
+    confidence_level: str = "medium"
+    model_version: str = "2.0.0"
+    calibrated: bool = True
+
+
+# ── Chat Schemas ─────────────────────────────────────────────────────────
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+class ChatResponse(BaseModel):
+    text_response: str
+    metadata: dict = {}
+    visualizations: list = []
+    tables: list = []

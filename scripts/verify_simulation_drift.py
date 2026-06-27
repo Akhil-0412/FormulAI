@@ -15,9 +15,9 @@ from data.openf1_client import OpenF1Client
 from features.pre_race import build_pre_race_features
 from features.feature_store import get_X_y
 from features.live_race import build_live_features_all_drivers
-from models.stage1_prerace import PreRacePredictor
-from models.stage2_live import LiveRaceUpdater
-from models.stage4_simulator import simulate_forward
+from models_v2.stage1_prerace import PreRacePredictor
+from models_v2.stage2_live import LiveRaceUpdater
+from models_v2.stage4_simulator import simulate_forward
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -31,7 +31,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # ── 1. Load priors ───────────────────────────────────────────────
-    model_path = Path("models/artifacts/stage1_prerace.joblib")
+    model_path = Path("models_v2/artifacts/stage1_prerace.joblib")
     if not model_path.exists():
         print(f"Model not found at {model_path}. Run training first.")
         return

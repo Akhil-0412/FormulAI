@@ -10,8 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from data.db import query_df
 from features.pre_race import build_pre_race_features
 from features.feature_store import get_X_y
-from models.stage1_prerace import PreRacePredictor
-from models.evaluate import evaluate_race, evaluation_summary
+from models_v2.stage1_prerace import PreRacePredictor
+from models_v2.evaluate import evaluate_race, evaluation_summary
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +37,7 @@ def main() -> None:
         return
 
     print(f"\n{'='*80}")
-    print(f"BACKTEST RESULTS — {args.test_year} Season ({len(races)} races)")
+    print(f"BACKTEST RESULTS - {args.test_year} Season ({len(races)} races)")
     print(f"{'='*80}")
     print(f"\n{'Race':<35} {'Predicted Podium':<45} {'Actual Podium':<45} {'Correct'}")
     print("-" * 130)
@@ -55,7 +55,7 @@ def main() -> None:
             pred_str = ", ".join(metrics["predicted_podium"])
             actual_str = ", ".join(metrics["actual_podium"])
             correct = metrics["correct_predictions"]
-            marker = "✅✅✅" if correct == 3 else "✅✅" if correct == 2 else "✅" if correct == 1 else "❌"
+            marker = "+++ " if correct == 3 else "++  " if correct == 2 else "+   " if correct == 1 else "X   "
 
             # Get race name
             race_info = query_df(
@@ -82,8 +82,8 @@ def main() -> None:
     print(f"{'='*80}")
     print(f"  Total races:         {summary.get('total_races', 0)}")
     print(f"  All 3 correct:       {summary.get('all_3_correct', 0)} ({summary.get('all_3_correct_pct', 0):.1f}%)")
-    print(f"  ≥2 correct:          {summary.get('at_least_2_correct', 0)} ({summary.get('at_least_2_pct', 0):.1f}%)")
-    print(f"  ≥1 correct:          {summary.get('at_least_1_correct', 0)} ({summary.get('at_least_1_pct', 0):.1f}%)")
+    print(f"  >=2 correct:         {summary.get('at_least_2_correct', 0)} ({summary.get('at_least_2_pct', 0):.1f}%)")
+    print(f"  >=1 correct:         {summary.get('at_least_1_correct', 0)} ({summary.get('at_least_1_pct', 0):.1f}%)")
     print(f"  Avg position MAE:    {summary.get('avg_position_mae', 0):.2f}")
     print(f"  Avg Brier score:     {summary.get('avg_brier_score', 0):.4f}")
     print(f"  High confidence %:   {summary.get('high_confidence_pct', 0):.1f}%")
