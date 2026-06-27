@@ -30,6 +30,21 @@ jobs:
       - name: Install Dependencies
         run: uv sync
 
+      - name: Cache Database and Features
+        uses: actions/cache@v3
+        with:
+          path: |
+            data/db/
+            data/cache/
+            data/feature_cache/
+            models_v2/artifacts/
+          key: ${{ runner.os }}-f1-data-${{ hashFiles('scripts/ingest_historical.py') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-f1-data-
+
+      - name: Ingest Latest Data
+        run: uv run python scripts/ingest_historical.py --start-year 2014 --latest
+
       - name: Run Automated Pipeline
         run: uv run python scripts/automated_pipeline.py
 

@@ -34,7 +34,7 @@ async def main():
         )
     except subprocess.CalledProcessError as e:
         logger.error(f"Rolling backtest failed: {e}")
-        return
+        sys.exit(1)
 
     # 2. Determine Next Race
     # The backtest will have inserted the next race into the `races` table temporarily, or we can fetch the latest race.
@@ -42,7 +42,7 @@ async def main():
     
     if races_df.empty:
         logger.error(f"No races found for {current_year}.")
-        return
+        sys.exit(1)
 
     next_round = int(races_df.iloc[0]["round"])
     logger.info(f"Generating full-race prediction payload for {current_year} R{next_round}...")
@@ -71,6 +71,7 @@ async def main():
             logger.error(f"Failed to generate full race prediction: {e}")
             import traceback
             traceback.print_exc()
+            sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
