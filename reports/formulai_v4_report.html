@@ -1,0 +1,291 @@
+<title>FormulAI Podium Model v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one ~70ch reading column; data bands (timing tower, tables, charts) widen to 1040px. */
+:root {
+  --paper: #f5f6f8;
+  --surface: #ffffff;
+  --ink: #15171c;
+  --ink-2: #474d5a;
+  --muted: #6c7282;
+  --rule: #dde0e6;
+  --accent: #c8102e;      /* race red: the one loud colour */
+  --best: #6d28d9;        /* timing-screen purple = best in column */
+  --good: #15803d;
+  --bad: #b42318;
+  --bar: #2a78d6;
+  --bar-soft: #b7d3f6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --font-display: "Titillium Web", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --step--1: 0.84rem; --step-0: 1.02rem; --step-1: 1.25rem; --step-2: 1.6rem; --step-3: 2.3rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0f1115; --surface: #171a21; --ink: #eef0f4; --ink-2: #b9bfcb; --muted: #8c93a3;
+    --rule: #2b303b; --accent: #ff5468; --best: #b197fc; --good: #4ade80; --bad: #f87171;
+    --bar: #3987e5; --bar-soft: #1c3d66;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0f1115; --surface: #171a21; --ink: #eef0f4; --ink-2: #b9bfcb; --muted: #8c93a3;
+  --rule: #2b303b; --accent: #ff5468; --best: #b197fc; --good: #4ade80; --bad: #f87171;
+  --bar: #3987e5; --bar-soft: #1c3d66;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--font-body);
+  font-size: var(--step-0); line-height: 1.6; margin: 0;
+  padding-inline: max(16px, 4vw); padding-block: 40px 72px;
+}
+main { max-width: 1040px; margin: 0 auto; display: grid; gap: 56px; }
+.prose { max-width: 70ch; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: var(--step-3); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: var(--step-2); font-weight: 700; }
+h3 { font-size: var(--step-1); font-weight: 600; }
+p { margin: 0; }
+section { display: grid; gap: 18px; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: var(--step--1); color: var(--muted);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.eyebrow b { color: var(--accent); font-weight: 500; }
+.lede { font-size: var(--step-1); color: var(--ink-2); max-width: 62ch; }
+header { display: grid; gap: 14px; border-bottom: 3px solid var(--accent); padding-bottom: 28px; }
+.num, td.n, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.small { font-size: var(--step--1); color: var(--muted); }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* headline figures */
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.figure { background: var(--surface); border: 1px solid var(--rule); padding: 18px 20px; display: grid; gap: 6px; align-content: start; }
+.figure .big { font-family: var(--font-display); font-size: 2.4rem; font-weight: 700; line-height: 1; }
+.figure .big small { font-size: 1rem; color: var(--muted); font-weight: 600; }
+.figure .vs { font-size: var(--step--1); color: var(--ink-2); }
+.delta-up { color: var(--good); font-weight: 600; }
+.delta-down { color: var(--bad); font-weight: 600; }
+
+/* timing tower */
+.tower { background: var(--surface); border: 1px solid var(--rule); }
+.tower-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; padding: 14px 18px; border-bottom: 1px solid var(--rule); }
+.tower-row { display: grid; grid-template-columns: 2.4rem minmax(0, 9rem) minmax(0, 1fr) 4.2rem 4.2rem; gap: 12px; align-items: center; padding: 7px 18px; border-bottom: 1px solid var(--rule); }
+.tower-row:last-child { border-bottom: 0; }
+.tower-row.head { font-family: var(--font-mono); font-size: var(--step--1); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.pos { font-family: var(--font-display); font-weight: 700; font-size: var(--step-1); }
+.tower-row.podium .pos { color: var(--accent); }
+.drv { display: grid; line-height: 1.2; }
+.drv b { font-family: var(--font-display); font-size: var(--step-0); }
+.drv span { font-size: var(--step--1); color: var(--muted); }
+.track { position: relative; height: 12px; background: var(--paper); }
+.track i { position: absolute; inset: 0 auto 0 0; background: var(--bar); border-radius: 0 4px 4px 0; }
+.track i.win { background: var(--bar-soft); }
+.pct { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* tables */
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { font-family: var(--font-mono); font-size: var(--step--1); font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+td.n, th.n { text-align: right; }
+tr.group td { font-family: var(--font-mono); font-size: var(--step--1); color: var(--muted); background: var(--paper); text-transform: uppercase; letter-spacing: 0.05em; }
+td.best { color: var(--best); font-weight: 600; }
+tr.chosen td:first-child { box-shadow: inset 3px 0 0 var(--accent); font-weight: 600; }
+.tag { font-family: var(--font-mono); font-size: 0.72rem; padding: 1px 6px; border: 1px solid var(--rule); color: var(--ink-2); margin-left: 6px; }
+.tag.dl { border-color: var(--s4); }
+.tag.base { color: var(--muted); }
+
+/* charts */
+.chart { background: var(--surface); border: 1px solid var(--rule); padding: 16px; position: relative; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart text { fill: var(--ink-2); font-family: var(--font-mono); font-size: 11px; }
+.chart .axis { stroke: var(--rule); }
+.chart .grid { stroke: var(--rule); stroke-dasharray: 2 4; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: var(--step--1); color: var(--ink-2); margin-bottom: 8px; }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--paper); font-family: var(--font-mono); font-size: 12px; padding: 4px 8px; white-space: nowrap; transform: translate(-50%, -120%); }
+.tip[hidden] { display: none; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+details { background: var(--surface); border: 1px solid var(--rule); padding: 10px 14px; }
+summary { cursor: pointer; font-family: var(--font-mono); font-size: var(--step--1); color: var(--ink-2); }
+
+/* lists */
+.issues { display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.issue { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 8px 24px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.issue h3 { font-size: var(--step-0); }
+.issue p { color: var(--ink-2); }
+@media (max-width: 640px) {
+  .issue { grid-template-columns: 1fr; }
+  .tower-row { grid-template-columns: 2rem minmax(0, 7rem) minmax(0, 1fr) 3.6rem; }
+  .tower-row .win-col { display: none; }
+}
+ol.refs { padding-left: 1.2rem; display: grid; gap: 8px; color: var(--ink-2); font-size: 0.95rem; }
+.verdict { border-left: 3px solid var(--accent); padding: 4px 0 4px 18px; display: grid; gap: 10px; }
+@media (prefers-reduced-motion: no-preference) {
+  .track i { transition: width 0.6s ease-out; }
+}
+</style>
+
+<main>
+
+<header>
+  <p class="eyebrow">Model report · 4 October 2026 · <b>data through 2026 R15, Azerbaijan</b></p>
+  <h1>FormulAI podium model v4</h1>
+  <p class="lede">The data now runs through Baku, eight bugs that were quietly degrading predictions are fixed, and every candidate model was re-tested the way it is used: each race predicted only from the races before it. The new model's podium probabilities are 24% more accurate than the current production model's, and its podium picks match the best simple baseline. No approach, tree, linear or neural, reliably beats "take the top three on the grid" on podium picks alone.</p>
+</header>
+
+<section>
+  <div class="figures">
+    <div class="figure"><span class="eyebrow">Podium log-loss</span><span class="big num">0.213</span>
+      <span class="vs">vs 0.282 current · 0.237 grid-only <span class="delta-up">−24%</span></span></div>
+    <div class="figure"><span class="eyebrow">Podium picks correct</span><span class="big num">2.00<small> / 3</small></span>
+      <span class="vs">vs 1.91 current · 1.99 grid order</span></div>
+    <div class="figure"><span class="eyebrow">Race winner as top pick</span><span class="big num">60%</span>
+      <span class="vs">vs 48% current model</span></div>
+    <div class="figure"><span class="eyebrow">Before qualifying</span><span class="big num">1.65<small> / 3</small></span>
+      <span class="vs">vs 1.54 current · log-loss 0.258 vs 0.306</span></div>
+  </div>
+  <p class="small">Walk-forward over 107 races, 2022–2026, after qualifying unless marked. Log-loss scores every driver's podium probability; lower is better.</p>
+</section>
+
+
+<section>
+  <p class="eyebrow">Next race forecast · <b>post-qualifying</b></p>
+  <h2>Bahrain Grand Prix in Malaysia, round 16</h2>
+  <p class="prose">Qualifying is in, so this is the post-qualifying model: it knows the grid. Probabilities come from the Plackett-Luce layer, so the podium column sums to 300% across the field and the win column to 100%. Data through 2026_15.</p>
+  <div class="tower">
+    <div class="tower-head"><span class="eyebrow">2026-10-04</span><span class="eyebrow">Top 10 of 22</span></div>
+    <div class="tower-row head"><span>Pos</span><span>Driver</span><span>P(podium)</span><span class="pct">Podium</span><span class="pct win-col">Win</span></div><div class="tower-row podium"><span class="pos">P1</span><span class="drv"><b>Max Verstappen</b><span>Red Bull</span></span><span class="track" aria-hidden="true"><i style="width:80.8%"></i></span><span class="pct">80.8%</span><span class="pct win-col">37.0%</span></div><div class="tower-row podium"><span class="pos">P2</span><span class="drv"><b>Andrea Kimi Antonelli</b><span>Mercedes</span></span><span class="track" aria-hidden="true"><i style="width:52.8%"></i></span><span class="pct">52.8%</span><span class="pct win-col">16.5%</span></div><div class="tower-row podium"><span class="pos">P3</span><span class="drv"><b>Lewis Hamilton</b><span>Ferrari</span></span><span class="track" aria-hidden="true"><i style="width:48.4%"></i></span><span class="pct">48.4%</span><span class="pct win-col">14.6%</span></div><div class="tower-row"><span class="pos">P4</span><span class="drv"><b>Isack Hadjar</b><span>Red Bull</span></span><span class="track" aria-hidden="true"><i style="width:41.2%"></i></span><span class="pct">41.2%</span><span class="pct win-col">11.9%</span></div><div class="tower-row"><span class="pos">P5</span><span class="drv"><b>Charles Leclerc</b><span>Ferrari</span></span><span class="track" aria-hidden="true"><i style="width:18.6%"></i></span><span class="pct">18.6%</span><span class="pct win-col">4.9%</span></div><div class="tower-row"><span class="pos">P6</span><span class="drv"><b>Lando Norris</b><span>McLaren</span></span><span class="track" aria-hidden="true"><i style="width:18.5%"></i></span><span class="pct">18.5%</span><span class="pct win-col">4.9%</span></div><div class="tower-row"><span class="pos">P7</span><span class="drv"><b>George Russell</b><span>Mercedes</span></span><span class="track" aria-hidden="true"><i style="width:18.4%"></i></span><span class="pct">18.4%</span><span class="pct win-col">4.8%</span></div><div class="tower-row"><span class="pos">P8</span><span class="drv"><b>Oscar Piastri</b><span>McLaren</span></span><span class="track" aria-hidden="true"><i style="width:10.5%"></i></span><span class="pct">10.5%</span><span class="pct win-col">2.7%</span></div><div class="tower-row"><span class="pos">P9</span><span class="drv"><b>Pierre Gasly</b><span>Alpine F1 Team</span></span><span class="track" aria-hidden="true"><i style="width:2.9%"></i></span><span class="pct">2.9%</span><span class="pct win-col">0.7%</span></div><div class="tower-row"><span class="pos">P10</span><span class="drv"><b>Gabriel Bortoleto</b><span>Audi</span></span><span class="track" aria-hidden="true"><i style="width:1.7%"></i></span><span class="pct">1.7%</span><span class="pct win-col">0.4%</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>How the candidates compare</h2>
+  <p class="prose">33 variants were scored in the walk-forward lab: every race of 2021–2026 predicted by a model refit on all earlier races, in two regimes (after and before qualifying). Members were chosen on 2022–2024 by log-loss, with podium picks no worse than the baseline, and then checked once on 2025–2026. Purple marks the best value in each column, as on a timing screen.</p>
+  <h3>After qualifying</h3>
+  <div class="table-wrap"><table><tr><th>Model</th><th class="n">Picks /3<br>2022–24</th><th class="n">Log-loss<br>2022–24</th><th class="n">Picks /3<br>2025–26</th><th class="n">Log-loss<br>2025–26</th><th class="n">Winner<br>2025–26</th></tr><tr class="group"><td colspan="6">Baselines</td></tr><tr><td>Grid order (baseline)<span class="tag base">baseline</span></td><td class="n">1.94</td><td class="n">0.247</td><td class="n best">2.08</td><td class="n">0.221</td><td class="n">67%</td></tr><tr><td>Quali gap (baseline)<span class="tag base">baseline</span></td><td class="n">1.87</td><td class="n">0.236</td><td class="n best">2.08</td><td class="n">0.216</td><td class="n best">69%</td></tr><tr><td>Championship order (baseline)<span class="tag base">baseline</span></td><td class="n">1.63</td><td class="n">0.274</td><td class="n">1.77</td><td class="n">0.262</td><td class="n">26%</td></tr><tr class="group"><td colspan="6">Current production</td></tr><tr><td>Current production LTR</td><td class="n">1.88</td><td class="n">0.292</td><td class="n">1.95</td><td class="n">0.264</td><td class="n">51%</td></tr><tr><td>Production LTR, v4 features</td><td class="n best">1.99</td><td class="n">0.241</td><td class="n best">2.08</td><td class="n">0.216</td><td class="n">62%</td></tr><tr class="group"><td colspan="6">Machine learning (trees, linear)</td></tr><tr><td>XGBoost LambdaMART</td><td class="n">1.88</td><td class="n">0.226</td><td class="n">2.05</td><td class="n best">0.198</td><td class="n">62%</td></tr><tr><td>LightGBM LambdaMART</td><td class="n">1.87</td><td class="n">0.233</td><td class="n">2.03</td><td class="n">0.207</td><td class="n">54%</td></tr><tr><td>LightGBM rank, F1-points labels</td><td class="n">1.93</td><td class="n">0.242</td><td class="n">1.95</td><td class="n">0.219</td><td class="n">64%</td></tr><tr><td>LightGBM podium classifier</td><td class="n">1.91</td><td class="n">0.224</td><td class="n">2.05</td><td class="n">0.203</td><td class="n">51%</td></tr><tr><td>Plackett-Luce linear (ROL)</td><td class="n">1.87</td><td class="n">0.238</td><td class="n">2.03</td><td class="n">0.211</td><td class="n">38%</td></tr><tr class="group"><td colspan="6">Deep learning</td></tr><tr><td>Neural ListMLE (deep learning)<span class="tag dl">neural</span></td><td class="n">1.94</td><td class="n">0.246</td><td class="n">2.03</td><td class="n">0.226</td><td class="n">31%</td></tr><tr><td>Blend: LGB + XGB + PL + neural<span class="tag dl">neural</span></td><td class="n">1.90</td><td class="n">0.228</td><td class="n">2.05</td><td class="n">0.204</td><td class="n">49%</td></tr><tr class="group"><td colspan="6">Selected</td></tr><tr class="chosen"><td>New: XGB + podium clf + grid</td><td class="n">1.97</td><td class="n best">0.222</td><td class="n">2.05</td><td class="n">0.199</td><td class="n">64%</td></tr></table></div>
+  <h3>Before qualifying</h3>
+  <div class="table-wrap"><table><tr><th>Model</th><th class="n">Picks /3<br>2022–24</th><th class="n">Log-loss<br>2022–24</th><th class="n">Picks /3<br>2025–26</th><th class="n">Log-loss<br>2025–26</th><th class="n">Winner<br>2025–26</th></tr><tr class="group"><td colspan="6">Baselines</td></tr><tr><td>Championship order (baseline)<span class="tag base">baseline</span></td><td class="n best">1.63</td><td class="n">0.274</td><td class="n">1.77</td><td class="n">0.262</td><td class="n">26%</td></tr><tr class="group"><td colspan="6">Current production</td></tr><tr><td>Current production LTR</td><td class="n">1.51</td><td class="n">0.311</td><td class="n">1.59</td><td class="n">0.298</td><td class="n">33%</td></tr><tr><td>Production LTR, v4 features</td><td class="n">1.50</td><td class="n">0.283</td><td class="n">1.62</td><td class="n">0.255</td><td class="n">33%</td></tr><tr class="group"><td colspan="6">Machine learning (trees, linear)</td></tr><tr><td>XGBoost LambdaMART</td><td class="n">1.54</td><td class="n">0.268</td><td class="n best">1.79</td><td class="n">0.245</td><td class="n">33%</td></tr><tr><td>LightGBM LambdaMART</td><td class="n">1.49</td><td class="n">0.272</td><td class="n">1.69</td><td class="n">0.248</td><td class="n">38%</td></tr><tr><td>LightGBM rank, F1-points labels</td><td class="n">1.53</td><td class="n">0.281</td><td class="n">1.64</td><td class="n">0.256</td><td class="n">31%</td></tr><tr><td>LightGBM podium classifier</td><td class="n">1.47</td><td class="n">0.273</td><td class="n">1.59</td><td class="n">0.249</td><td class="n best">44%</td></tr><tr><td>Plackett-Luce linear (ROL)</td><td class="n">1.51</td><td class="n">0.274</td><td class="n">1.77</td><td class="n">0.245</td><td class="n">28%</td></tr><tr class="group"><td colspan="6">Deep learning</td></tr><tr><td>Neural ListMLE (deep learning)<span class="tag dl">neural</span></td><td class="n">1.59</td><td class="n">0.281</td><td class="n">1.67</td><td class="n">0.259</td><td class="n">23%</td></tr><tr><td>Blend: LGB + XGB + PL + neural<span class="tag dl">neural</span></td><td class="n">1.49</td><td class="n">0.268</td><td class="n">1.77</td><td class="n best">0.245</td><td class="n">31%</td></tr><tr class="group"><td colspan="6">Selected</td></tr><tr class="chosen"><td>New: XGB + championship order</td><td class="n best">1.63</td><td class="n best">0.265</td><td class="n">1.69</td><td class="n">0.247</td><td class="n">31%</td></tr></table></div>
+  <p class="small">The production LTR was tuned with 2025 as its validation season, so its 2025–26 numbers are slightly flattering. The before-qualifying baseline is championship order.</p>
+</section>
+
+<section>
+  <h2>Better probabilities, not more podiums</h2>
+  <p class="prose">Compared race by race against the grid baseline, every model's podium-pick difference straddles zero: about one pick in thirty, inside the noise of 107 races. On log-loss the gradient-boosted models and the selected blend are clearly better than the grid, while the current production model is clearly worse. A podium hit rate near 2 in 3 is the sport's ceiling for this information, not a limitation of any one algorithm.</p>
+  <div class="two"><div class="chart"><p class="small">Podium picks vs grid baseline (per race, out of 3). Right is better; a bar crossing the red line is not distinguishable from the baseline.</p><svg viewBox="0 0 520 276" role="img" aria-label="correct difference versus baseline with 90% intervals"><line class="grid" x1="200.0" x2="200.0" y1="10" y2="248"/><text x="200.0" y="264" text-anchor="middle">-0.25</text><line class="grid" x1="274.0" x2="274.0" y1="10" y2="248"/><text x="274.0" y="264" text-anchor="middle">-0.15</text><line class="grid" x1="348.0" x2="348.0" y1="10" y2="248"/><text x="348.0" y="264" text-anchor="middle">-0.05</text><line class="grid" x1="422.0" x2="422.0" y1="10" y2="248"/><text x="422.0" y="264" text-anchor="middle">+0.05</text><line class="grid" x1="496.0" x2="496.0" y1="10" y2="248"/><text x="496.0" y="264" text-anchor="middle">+0.15</text><line x1="385.0" x2="385.0" y1="10" y2="248" stroke="var(--accent)" stroke-width="1.5"/><text x="190" y="36.0" text-anchor="end" font-weight="600">New: XGB + podium clf + grid</text><line x1="350.4" x2="433.4" y1="32.0" y2="32.0" stroke="var(--bar)" stroke-width="2"/><circle tabindex="0" cx="391.9" cy="32.0" r="5" fill="var(--bar)" stroke="var(--surface)" stroke-width="2" data-tip="New: XGB + podium clf + grid: +0.009 (90% CI -0.047 to +0.065)"/><text x="190" y="64.0" text-anchor="end">XGBoost LambdaMART</text><line x1="302.0" x2="398.8" y1="60.0" y2="60.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="350.4" cy="60.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="XGBoost LambdaMART: -0.047 (90% CI -0.112 to +0.019)"/><text x="190" y="92.0" text-anchor="end">LightGBM podium classifier</text><line x1="302.0" x2="426.5" y1="88.0" y2="88.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="364.3" cy="88.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="LightGBM podium classifier: -0.028 (90% CI -0.112 to +0.056)"/><text x="190" y="120.0" text-anchor="end">Production LTR, v4 features</text><line x1="343.5" x2="468.0" y1="116.0" y2="116.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="405.7" cy="116.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Production LTR, v4 features: +0.028 (90% CI -0.056 to +0.112)"/><text x="190" y="148.0" text-anchor="end">Plackett-Luce linear (ROL)</text><line x1="267.4" x2="405.7" y1="144.0" y2="144.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="336.6" cy="144.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Plackett-Luce linear (ROL): -0.065 (90% CI -0.159 to +0.028)"/><text x="190" y="176.0" text-anchor="end">Neural ListMLE (deep learning)</text><line x1="295.1" x2="447.2" y1="172.0" y2="172.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="371.2" cy="172.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Neural ListMLE (deep learning): -0.019 (90% CI -0.121 to +0.084)"/><text x="190" y="204.0" text-anchor="end">Current production LTR</text><line x1="253.6" x2="391.9" y1="200.0" y2="200.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="322.8" cy="200.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Current production LTR: -0.084 (90% CI -0.178 to +0.009)"/><text x="190" y="232.0" text-anchor="end">Quali gap (baseline)</text><line x1="302.0" x2="398.8" y1="228.0" y2="228.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="350.4" cy="228.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Quali gap (baseline): -0.047 (90% CI -0.112 to +0.019)"/></svg><div class="tip" hidden></div></div><div class="chart"><p class="small">Podium log-loss vs grid baseline. Left is better.</p><svg viewBox="0 0 520 276" role="img" aria-label="logloss difference versus baseline with 90% intervals"><line class="grid" x1="200.0" x2="200.0" y1="10" y2="248"/><text x="200.0" y="264" text-anchor="middle">-0.04</text><line class="grid" x1="274.0" x2="274.0" y1="10" y2="248"/><text x="274.0" y="264" text-anchor="middle">-0.01</text><line class="grid" x1="348.0" x2="348.0" y1="10" y2="248"/><text x="348.0" y="264" text-anchor="middle">+0.01</text><line class="grid" x1="422.0" x2="422.0" y1="10" y2="248"/><text x="422.0" y="264" text-anchor="middle">+0.04</text><line class="grid" x1="496.0" x2="496.0" y1="10" y2="248"/><text x="496.0" y="264" text-anchor="middle">+0.06</text><line x1="318.4" x2="318.4" y1="10" y2="248" stroke="var(--accent)" stroke-width="1.5"/><text x="190" y="36.0" text-anchor="end" font-weight="600">New: XGB + podium clf + grid</text><line x1="220.1" x2="272.8" y1="32.0" y2="32.0" stroke="var(--bar)" stroke-width="2"/><circle tabindex="0" cx="247.1" cy="32.0" r="5" fill="var(--bar)" stroke="var(--surface)" stroke-width="2" data-tip="New: XGB + podium clf + grid: -0.024 (90% CI -0.033 to -0.015)"/><text x="190" y="64.0" text-anchor="end">XGBoost LambdaMART</text><line x1="217.2" x2="289.1" y1="60.0" y2="60.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="254.5" cy="60.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="XGBoost LambdaMART: -0.022 (90% CI -0.034 to -0.010)"/><text x="190" y="92.0" text-anchor="end">LightGBM podium classifier</text><line x1="215.1" x2="297.1" y1="88.0" y2="88.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="257.1" cy="88.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="LightGBM podium classifier: -0.021 (90% CI -0.035 to -0.007)"/><text x="190" y="120.0" text-anchor="end">Production LTR, v4 features</text><line x1="255.1" x2="350.4" y1="116.0" y2="116.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="302.7" cy="116.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Production LTR, v4 features: -0.005 (90% CI -0.021 to +0.011)"/><text x="190" y="148.0" text-anchor="end">Plackett-Luce linear (ROL)</text><line x1="255.9" x2="325.8" y1="144.0" y2="144.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="291.2" cy="144.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Plackett-Luce linear (ROL): -0.009 (90% CI -0.021 to +0.003)"/><text x="190" y="176.0" text-anchor="end">Neural ListMLE (deep learning)</text><line x1="278.1" x2="366.4" y1="172.0" y2="172.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="322.2" cy="172.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Neural ListMLE (deep learning): +0.001 (90% CI -0.014 to +0.016)"/><text x="190" y="204.0" text-anchor="end">Current production LTR</text><line x1="403.9" x2="497.8" y1="200.0" y2="200.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="449.8" cy="200.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Current production LTR: +0.044 (90% CI +0.029 to +0.061)"/><text x="190" y="232.0" text-anchor="end">Quali gap (baseline)</text><line x1="261.9" x2="326.7" y1="228.0" y2="228.0" stroke="var(--muted)" stroke-width="2"/><circle tabindex="0" cx="293.5" cy="228.0" r="5" fill="var(--muted)" stroke="var(--surface)" stroke-width="2" data-tip="Quali gap (baseline): -0.008 (90% CI -0.019 to +0.003)"/></svg><div class="tip" hidden></div></div></div>
+</section>
+
+<section>
+  <h2>Season by season</h2>
+  <p class="prose">Podium picks per race after qualifying. All four lines move together because the seasons differ far more than the models do: 2025 was predictable, while 2026 opened a new rulebook.</p>
+  <div class="chart"><div class="legend"><span style="--c:var(--s1)">New model</span><span style="--c:var(--s2)">Current production</span><span style="--c:var(--s3)">Grid order</span><span style="--c:var(--s4)">Neural ListMLE</span></div><svg viewBox="0 0 760 320" role="img" aria-label="Average podium picks correct by season"><line class="grid" x1="44" x2="610" y1="286.0" y2="286.0"/><text x="36" y="290.0" text-anchor="end">1.5</text><line class="grid" x1="44" x2="610" y1="218.5" y2="218.5"/><text x="36" y="222.5" text-anchor="end">1.8</text><line class="grid" x1="44" x2="610" y1="151.0" y2="151.0"/><text x="36" y="155.0" text-anchor="end">2.0</text><line class="grid" x1="44" x2="610" y1="83.5" y2="83.5"/><text x="36" y="87.5" text-anchor="end">2.2</text><line class="grid" x1="44" x2="610" y1="16.0" y2="16.0"/><text x="36" y="20.0" text-anchor="end">2.5</text><text x="44.0" y="310" text-anchor="middle">2022</text><text x="185.5" y="310" text-anchor="middle">2023</text><text x="327.0" y="310" text-anchor="middle">2024</text><text x="468.5" y="310" text-anchor="middle">2025</text><text x="610.0" y="310" text-anchor="middle">2026</text><path d="M44.0,175.6 L185.5,151.0 L327.0,151.0 L468.5,94.8 L610.0,205.0" fill="none" stroke="var(--s1)" stroke-width="2"/><circle tabindex="0" cx="44.0" cy="175.6" r="4.5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model 2022: 1.91"/><circle tabindex="0" cx="185.5" cy="151.0" r="4.5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model 2023: 2.00"/><circle tabindex="0" cx="327.0" cy="151.0" r="4.5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model 2024: 2.00"/><circle tabindex="0" cx="468.5" cy="94.8" r="4.5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model 2025: 2.21"/><circle tabindex="0" cx="610.0" cy="205.0" r="4.5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model 2026: 1.80"/><path d="M44.0,163.1 L185.5,187.7 L327.0,196.1 L468.5,128.6 L610.0,223.1" fill="none" stroke="var(--s2)" stroke-width="2"/><circle tabindex="0" cx="44.0" cy="163.1" r="4.5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production 2022: 1.96"/><circle tabindex="0" cx="185.5" cy="187.7" r="4.5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production 2023: 1.86"/><circle tabindex="0" cx="327.0" cy="196.1" r="4.5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production 2024: 1.83"/><circle tabindex="0" cx="468.5" cy="128.6" r="4.5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production 2025: 2.08"/><circle tabindex="0" cx="610.0" cy="223.1" r="4.5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production 2026: 1.73"/><path d="M44.0,175.6 L185.5,175.6 L327.0,151.0 L468.5,83.5 L610.0,205.0" fill="none" stroke="var(--s3)" stroke-width="2"/><circle tabindex="0" cx="44.0" cy="175.6" r="4.5" fill="var(--s3)" stroke="var(--surface)" stroke-width="2" data-tip="Grid order 2022: 1.91"/><circle tabindex="0" cx="185.5" cy="175.6" r="4.5" fill="var(--s3)" stroke="var(--surface)" stroke-width="2" data-tip="Grid order 2023: 1.91"/><circle tabindex="0" cx="327.0" cy="151.0" r="4.5" fill="var(--s3)" stroke="var(--surface)" stroke-width="2" data-tip="Grid order 2024: 2.00"/><circle tabindex="0" cx="468.5" cy="83.5" r="4.5" fill="var(--s3)" stroke="var(--surface)" stroke-width="2" data-tip="Grid order 2025: 2.25"/><circle tabindex="0" cx="610.0" cy="205.0" r="4.5" fill="var(--s3)" stroke="var(--surface)" stroke-width="2" data-tip="Grid order 2026: 1.80"/><path d="M44.0,200.1 L185.5,138.9 L327.0,162.3 L468.5,105.9 L610.0,205.0" fill="none" stroke="var(--s4)" stroke-width="2"/><circle tabindex="0" cx="44.0" cy="200.1" r="4.5" fill="var(--s4)" stroke="var(--surface)" stroke-width="2" data-tip="Neural ListMLE 2022: 1.82"/><circle tabindex="0" cx="185.5" cy="138.9" r="4.5" fill="var(--s4)" stroke="var(--surface)" stroke-width="2" data-tip="Neural ListMLE 2023: 2.04"/><circle tabindex="0" cx="327.0" cy="162.3" r="4.5" fill="var(--s4)" stroke="var(--surface)" stroke-width="2" data-tip="Neural ListMLE 2024: 1.96"/><circle tabindex="0" cx="468.5" cy="105.9" r="4.5" fill="var(--s4)" stroke="var(--surface)" stroke-width="2" data-tip="Neural ListMLE 2025: 2.17"/><circle tabindex="0" cx="610.0" cy="205.0" r="4.5" fill="var(--s4)" stroke="var(--surface)" stroke-width="2" data-tip="Neural ListMLE 2026: 1.80"/><text x="620.0" y="209.0">Grid order</text><text x="620.0" y="223.0">Neural ListMLE</text><text x="620.0" y="237.0">New model</text><text x="620.0" y="251.0">Current production</text></svg><div class="tip" hidden></div></div>
+  <details><summary>Data table</summary>
+  <div class="table-wrap"><table><tr><th>Model</th><th class="n">2022</th><th class="n">2023</th><th class="n">2024</th><th class="n">2025</th><th class="n">2026</th></tr>
+  <tr><td>New model</td><td class="n">1.91</td><td class="n">2.00</td><td class="n">2.00</td><td class="n">2.21</td><td class="n">1.80</td></tr><tr><td>Current production</td><td class="n">1.96</td><td class="n">1.86</td><td class="n">1.83</td><td class="n">2.08</td><td class="n">1.73</td></tr><tr><td>Grid order</td><td class="n">1.91</td><td class="n">1.91</td><td class="n">2.00</td><td class="n">2.25</td><td class="n">1.80</td></tr><tr><td>Neural ListMLE</td><td class="n">1.82</td><td class="n">2.04</td><td class="n">1.96</td><td class="n">2.17</td><td class="n">1.80</td></tr>
+  </table></div></details>
+</section>
+
+<section>
+  <h2>Calibration: does "60%" happen 60% of the time?</h2>
+  <div class="two">
+    <div class="chart"><div class="legend"><span style="--c:var(--s1)">New model</span><span style="--c:var(--s2)">Current production</span></div><svg viewBox="0 0 420 360" role="img" aria-label="Predicted versus observed podium rate"><line class="grid" x1="44" x2="404" y1="320.0" y2="320.0"/><text x="36" y="324.0" text-anchor="end">0%</text><text x="44.0" y="338" text-anchor="middle">0%</text><line class="grid" x1="44" x2="404" y1="244.0" y2="244.0"/><text x="36" y="248.0" text-anchor="end">25%</text><text x="134.0" y="338" text-anchor="middle">25%</text><line class="grid" x1="44" x2="404" y1="168.0" y2="168.0"/><text x="36" y="172.0" text-anchor="end">50%</text><text x="224.0" y="338" text-anchor="middle">50%</text><line class="grid" x1="44" x2="404" y1="92.0" y2="92.0"/><text x="36" y="96.0" text-anchor="end">75%</text><text x="314.0" y="338" text-anchor="middle">75%</text><line class="grid" x1="44" x2="404" y1="16.0" y2="16.0"/><text x="36" y="20.0" text-anchor="end">100%</text><text x="404.0" y="338" text-anchor="middle">100%</text><text x="224.0" y="356" text-anchor="middle">predicted P(podium)</text><line x1="44" y1="320" x2="404" y2="16" stroke="var(--muted)" stroke-dasharray="4 4"/><path d="M48.2,318.2 L75.9,296.5 L123.2,243.1 L183.6,197.9 L257.8,121.0 L319.1,100.1 L369.6,60.5" fill="none" stroke="var(--s1)" stroke-width="2"/><circle tabindex="0" cx="48.2" cy="318.2" r="5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model: said 1%, happened 1% (n=1333)"/><circle tabindex="0" cx="75.9" cy="296.5" r="5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model: said 9%, happened 8% (n=246)"/><circle tabindex="0" cx="123.2" cy="243.1" r="5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model: said 22%, happened 25% (n=178)"/><circle tabindex="0" cx="183.6" cy="197.9" r="5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model: said 39%, happened 40% (n=137)"/><circle tabindex="0" cx="257.8" cy="121.0" r="5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model: said 59%, happened 65% (n=139)"/><circle tabindex="0" cx="319.1" cy="100.1" r="5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model: said 76%, happened 72% (n=94)"/><circle tabindex="0" cx="369.6" cy="60.5" r="5" fill="var(--s1)" stroke="var(--surface)" stroke-width="2" data-tip="New model: said 90%, happened 85% (n=41)"/><path d="M59.3,316.6 L71.3,300.7 L119.5,185.5 L186.2,139.5 L257.5,136.4 L328.0,115.4 L372.7,86.4" fill="none" stroke="var(--s2)" stroke-width="2"/><circle tabindex="0" cx="59.3" cy="316.6" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production: said 4%, happened 1% (n=531)"/><circle tabindex="0" cx="71.3" cy="300.7" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production: said 8%, happened 6% (n=1230)"/><circle tabindex="0" cx="119.5" cy="185.5" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production: said 21%, happened 44% (n=156)"/><circle tabindex="0" cx="186.2" cy="139.5" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production: said 39%, happened 59% (n=64)"/><circle tabindex="0" cx="257.5" cy="136.4" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production: said 59%, happened 60% (n=53)"/><circle tabindex="0" cx="328.0" cy="115.4" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production: said 79%, happened 67% (n=52)"/><circle tabindex="0" cx="372.7" cy="86.4" r="5" fill="var(--s2)" stroke="var(--surface)" stroke-width="2" data-tip="Current production: said 91%, happened 77% (n=82)"/></svg><div class="tip" hidden></div></div>
+    <div class="prose" style="display:grid;gap:12px;align-content:start">
+      <p>Points on the dashed diagonal mean the stated probability matched reality. The new model tracks it across the range, from near-zero midfield odds up to 90% favourites.</p>
+      <p>The current model, scored here with the same calibration step, still says 21% for drivers who reached the podium 44% of the time. The live site was worse still: its softmax put the favourite at about 5.9%, so every driver showed a near-identical "podium probability".</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>2026 so far</h2>
+  <p class="prose">The new model's walk-forward predictions for this season, each made from post-qualifying information with no knowledge of that race. It averages 1.80 correct per race over 15 rounds. On the 12 rounds the old site covered, it got 22 of 36 podium picks right against the old site's 23; 2026 is the hardest season in the test, with a new rulebook and a tight Mercedes–Red Bull–Ferrari–McLaren field. Over the full 2024 season the old site published 1.71 per race; the new model scores 2.00 on the same races.</p>
+  <div class="table-wrap"><table>
+<tr><th>Race</th><th>Predicted podium</th><th>Actual podium</th><th class="n">New</th><th class="n">Old site</th><th class="n">P(podium) given<br>to the winner</th></tr>
+<tr><td>Australia GP (R1)</td><td>Russell, Antonelli, Hadjar</td><td>Russell, Antonelli, Leclerc</td><td class="n">2/3</td><td class="n">2/3</td><td class="n">85%</td></tr><tr><td>China GP (R2)</td><td>Antonelli, Russell, Hamilton</td><td>Antonelli, Russell, Hamilton</td><td class="n">3/3</td><td class="n">2/3</td><td class="n">85%</td></tr><tr><td>Japan GP (R3)</td><td>Antonelli, Russell, Piastri</td><td>Antonelli, Piastri, Leclerc</td><td class="n">2/3</td><td class="n">2/3</td><td class="n">85%</td></tr><tr><td>USA GP (R4)</td><td>Antonelli, Verstappen, Leclerc</td><td>Antonelli, Norris, Piastri</td><td class="n">1/3</td><td class="n">1/3</td><td class="n">86%</td></tr><tr><td>Canada GP (R5)</td><td>Russell, Antonelli, Norris</td><td>Antonelli, Hamilton, Verstappen</td><td class="n">1/3</td><td class="n">1/3</td><td class="n">74%</td></tr><tr><td>Monaco GP (R6)</td><td>Antonelli, Verstappen, Hamilton</td><td>Antonelli, Hamilton, Hadjar</td><td class="n">2/3</td><td class="n">2/3</td><td class="n">81%</td></tr><tr><td>Spain GP (R7)</td><td>Russell, Hamilton, Antonelli</td><td>Hamilton, Russell, Norris</td><td class="n">2/3</td><td class="n">2/3</td><td class="n">69%</td></tr><tr><td>Austria GP (R8)</td><td>Russell, Leclerc, Hamilton</td><td>Russell, Verstappen, Antonelli</td><td class="n">1/3</td><td class="n">2/3</td><td class="n">80%</td></tr><tr><td>UK GP (R9)</td><td>Antonelli, Leclerc, Russell</td><td>Leclerc, Russell, Hamilton</td><td class="n">2/3</td><td class="n">2/3</td><td class="n">56%</td></tr><tr><td>Belgium GP (R10)</td><td>Antonelli, Verstappen, Russell</td><td>Antonelli, Leclerc, Verstappen</td><td class="n">2/3</td><td class="n">2/3</td><td class="n">83%</td></tr><tr><td>Hungary GP (R11)</td><td>Norris, Leclerc, Piastri</td><td>Norris, Verstappen, Antonelli</td><td class="n">1/3</td><td class="n">3/3</td><td class="n">74%</td></tr><tr><td>Netherlands GP (R12)</td><td>Norris, Russell, Antonelli</td><td>Norris, Antonelli, Russell</td><td class="n">3/3</td><td class="n">2/3</td><td class="n">69%</td></tr><tr><td>Italy GP (R13)</td><td>Russell, Leclerc, Gasly</td><td>Antonelli, Russell, Verstappen</td><td class="n">1/3</td><td class="n">–</td><td class="n">7%</td></tr><tr><td>Spain GP (R14)</td><td>Antonelli, Norris, Verstappen</td><td>Antonelli, Verstappen, Norris</td><td class="n">3/3</td><td class="n">–</td><td class="n">80%</td></tr><tr><td>Azerbaijan GP (R15)</td><td>Russell, Leclerc, Piastri</td><td>Russell, Verstappen, Hadjar</td><td class="n">1/3</td><td class="n">–</td><td class="n">90%</td></tr>
+</table></div>
+</section>
+
+<section>
+  <h2>Machine learning or deep learning?</h2>
+  <div class="verdict prose">
+    <p><strong>Machine learning, specifically gradient-boosted trees with a probabilistic ranking layer.</strong> In the lab the neural ListMLE ranker (an MLP trained on the Plackett-Luce likelihood, three seeds averaged) matched the grid baseline on picks and was worse calibrated than every tree model. Adding it to the blend did not help.</p>
+    <p>That is what the literature predicts at this scale. The data is 5,435 driver-race rows across 267 races, and the dominant signal (current car pace) shifts whenever the regulations reset.</p>
+  </div>
+  <ol class="refs">
+    <li>Grinsztajn, Oyallon &amp; Varoquaux (2022), NeurIPS Datasets &amp; Benchmarks. Tree-based models remain state of the art on medium-sized (~10k row) tabular data.</li>
+    <li>Shwartz-Ziv &amp; Armon (2022), <i>Information Fusion</i> 81. XGBoost generally beat deep tabular models outside the datasets they were designed on.</li>
+    <li>McElfresh et al. (2023), NeurIPS Datasets &amp; Benchmarks (176 datasets). The neural vs boosted-tree gap is often negligible; tuning GBDTs matters more than the model family.</li>
+    <li>Erickson et al. (2025), TabArena, NeurIPS Datasets &amp; Benchmarks. Deep tabular models catch up with GBDTs only with large tuning budgets and ensembling. Pretrained foundation models (Hollmann et al. 2025, TabPFN, <i>Nature</i> 637) lead on small datasets.</li>
+    <li>van Kesteren &amp; Bergkamp (2023), <i>JQAS</i> 19(4). A Bayesian rank-ordered logit on 2014–2021 attributes about 88% of driver/constructor variance to the car; Bell et al. (2016, <i>JQAS</i> 12) found 86% for 1979–2014.</li>
+    <li>Burges (2010), LambdaMART (MSR-TR-2010-82); Xia et al. (2008), ListMLE, ICML. These are the ranking objectives used here.</li>
+    <li>Peng et al. (2021), IPDPS, and Heilmeier et al. (2020), <i>Applied Sciences</i> 10. Sequence networks pay off on lap-by-lap timing data, where there are 20–100× more rows.</li>
+  </ol>
+  <p class="prose">Where deep learning would earn its place: (1) a live in-race model over lap-by-lap timing, and (2) TabPFN as a pretrained, pointwise P(podium) member of the blend. TabPFN wasn't tested here because it needs a weights download.</p>
+</section>
+
+<section>
+  <h2>What was wrong</h2>
+  <div class="issues">
+    <div class="issue"><h3>Lapped cars counted as DNFs</h3><p>Jolpica's 2023+ data says "Lapped" where older seasons said "+1 Lap". The code only recognised "Finished" and "+…", so hundreds of classified finishers became retirements. That corrupted the DNF head's labels and every reliability and form feature built on status.</p></div>
+    <div class="issue"><h3>Forecasts ran on an empty grid</h3><p>The next-race prediction inserted placeholder results (every driver "P10, Pending") with no grid. The model, trained on real grids, saw grid=20 for the entire field. Forecasts now use a separate pre-qualifying model until qualifying runs, and nothing is written to the database.</p></div>
+    <div class="issue"><h3>Probabilities were near-uniform</h3><p>A softmax over min-max-scaled scores at temperature 3 gave the favourite about 5.9%, and the field summed to 100% instead of 300%. These are now exact Plackett-Luce P(podium), calibrated out of sample.</p></div>
+    <div class="issue"><h3>Circuit features saw the future</h3><p>Circuit DNF rate, quali spread and pit-stop history included the race being predicted and every later race. Circuit-family maps also used Jolpica IDs (<span class="mono">marina_bay</span>) where the database stores <span class="mono">singapore</span>, so several tracks fell through to the default.</p></div>
+    <div class="issue"><h3>The ranker mostly learned winners</h3><p>F1-points relevance labels (25, 18, 15…) with LightGBM/XGBoost's default exponential gain make a win worth ~128× a second place. The new rankers use linear-gain top-10 labels.</p></div>
+    <div class="issue"><h3>Automation had been failing since August</h3><p>Every scheduled run crashed on an argument-parsing error after ingestion, and GitHub has since disabled the workflow for inactivity. The committed Jolpica client fetched only ~5 races per season, and the automated pipeline "forecast" the last race already run.</p></div>
+    <div class="issue"><h3>The baseline gate was in-sample</h3><p>The CI check scored the saved model on a season it had trained on. It now compares the season's walk-forward picks with the grid and quali baselines on the same races.</p></div>
+    <div class="issue"><h3>Stale and missing data</h3><p>The database stopped at Zandvoort (R12). Madrid and Sepang had no circuit metadata, weather covered only 2022 onward, and sprint results weren't ingested. All are now filled. Sprint position was tested as a feature and added nothing measurable, so it isn't used yet.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>What changed in the pipeline</h2>
+  <div class="issues">
+    <div class="issue"><h3>Features</h3><p><span class="mono">features/fast_features.py</span> builds all 267 races in about 2 seconds, against roughly 30 minutes for the old builder. It adds in-season team pace, recent qualifying form, field-relative ranks and regulation-reset awareness. Every rolling value is joined strictly from earlier races, and a test proves it.</p></div>
+    <div class="issue"><h3>Model</h3><p><span class="mono">models_v2/podium_predictor.py</span> has separate post- and pre-qualifying blends (members in <span class="mono">config/training_config.yaml</span>) and an exact Plackett-Luce probability layer. The API prefers it and falls back to the legacy LTR.</p></div>
+    <div class="issue"><h3>Evaluation</h3><p><span class="mono">scripts/model_lab.py</span> runs the walk-forward comparison with paired bootstrap intervals and calibration tables. <span class="mono">scripts/rolling_backtest.py</span> publishes the season's out-of-sample picks plus the next-race forecast to both <span class="mono">data/</span> and the frontend.</p></div>
+    <div class="issue"><h3>Automation</h3><p>Incremental ingestion, a weather and sprint top-up, a cache that can't restore truncated seasons, deterministic outputs (CI only commits when the data changed), and an out-of-sample baseline gate.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Next steps</h2>
+  <ol class="refs">
+    <li>Re-enable the GitHub workflow (it was disabled for inactivity). The first run does a full re-ingest of about 10 minutes, then incremental runs.</li>
+    <li>Give the Hugging Face backend a database snapshot. <span class="mono">data/db</span> is git-ignored, so the hosted API has no history to build v4 features from and will fall back to the legacy model.</li>
+    <li>Practice long-run pace (FP2) is the most promising new signal for pre-qualifying forecasts. The <span class="mono">fp2_long_runs</span> table exists but is empty.</li>
+    <li>Try TabPFN as a pointwise blend member, and build a lap-by-lap sequence model for live races.</li>
+  </ol>
+</section>
+
+</main>
+
+<script>
+(function () {
+  document.querySelectorAll('.chart').forEach(function (chart) {
+    var tip = chart.querySelector('.tip');
+    if (!tip) return;
+    chart.querySelectorAll('[data-tip]').forEach(function (el) {
+      function show(e) {
+        var box = chart.getBoundingClientRect();
+        var r = el.getBoundingClientRect();
+        tip.textContent = el.getAttribute('data-tip');
+        tip.style.left = (r.left + r.width / 2 - box.left) + 'px';
+        tip.style.top = (r.top - box.top) + 'px';
+        tip.hidden = false;
+      }
+      el.addEventListener('mouseenter', show);
+      el.addEventListener('focus', show);
+      el.addEventListener('mouseleave', function () { tip.hidden = true; });
+      el.addEventListener('blur', function () { tip.hidden = true; });
+    });
+  });
+})();
+</script>
