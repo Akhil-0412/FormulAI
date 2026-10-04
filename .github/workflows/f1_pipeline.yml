@@ -30,15 +30,16 @@ jobs:
       - name: Install Dependencies
         run: uv sync
 
-      # The DB is the expensive part (a full 2014→now ingest is ~1,500 rate-
-      # limited API calls), so it's cached and topped up incrementally.
-      # "v2" invalidates caches written before the Jolpica pagination fix,
-      # which hold only ~5 races per season — incremental ingest would
-      # otherwise treat those truncated seasons as complete.
+      # The DB is the expensive part: a full 2014→now ingest is ~1,200 API
+      # calls and Jolpica allows a few hundred per hour, so a cold start
+      # takes several runs. Each run resumes from the saved cache (seasons
+      # are logged in ingest_log only once complete), and the cache is saved
+      # even when a later step fails so that progress is never thrown away.
+      # "v2" invalidates caches written before the Jolpica pagination fix.
       # Model artifacts are NOT cached: a restored cache would overwrite the
       # checked-out models, and the pipeline retrains every run anyway.
-      - name: Cache Database
-        uses: actions/cache@v4
+      - name: Restore Database Cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             data/db/
@@ -47,6 +48,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-f1-data-v2-
 
+      # Exits non-zero while any season is still incomplete, which skips the
+      # retrain/publish steps below (the published files stay as they were).
       - name: Ingest Latest Data
         run: uv run python scripts/ingest_historical.py --start-year 2014 --latest --incremental
 
@@ -74,6 +77,17 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update F1 predictions & backtest data [skip ci]"
-            git pull --rebase
+            # --autostash: the retrained model artifact is modified but not
+            # committed, and a plain rebase refuses to run with it present.
+            git pull --rebase --autostash
             git push
           fi
+
+      - name: Save Database Cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/db/
+            data/cache/
+          key: ${{ runner.os }}-f1-data-v2-${{ github.run_id }}

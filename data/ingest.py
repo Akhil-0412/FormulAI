@@ -23,6 +23,18 @@ from data.jolpica_client import JolpicaClient
 logger = logging.getLogger(__name__)
 
 
+class IncompleteSeasonError(RuntimeError):
+    """Some API calls for the season failed; what did succeed is stored.
+
+    Raised after the whole season has been attempted, so a caller can record
+    the season as unfinished and retry it on the next run.
+    """
+
+    def __init__(self, year: int, failures: int, races: int):
+        super().__init__(f"{year}: {failures} API call(s) failed across {races} races")
+        self.year, self.failures, self.races = year, failures, races
+
+
 def _parse_lap_time(time_str: str | None) -> float | None:
     """Convert 'M:SS.mmm' to seconds."""
     if not time_str:
@@ -67,21 +79,25 @@ def ingest_season(year: int, client: JolpicaClient | None = None) -> int:
     logger.info("Ingesting %d races for %d", len(races), year)
 
     count = 0
+    failures = 0
     for race_data in races:
         try:
-            _ingest_single_race(year, race_data, client)
+            failures += _ingest_single_race(year, race_data, client)
             count += 1
         except Exception as exc:
+            failures += 1
             logger.error("Failed to ingest %s %d R%s: %s",
                          race_data.get("raceName", "?"), year, race_data.get("round", "?"), exc)
 
     logger.info("Ingested %d/%d races for %d", count, len(races), year)
-    if year >= 2021:  # the sprint format started in 2021
-        _ingest_sprints(year, client)
+    if year >= 2021 and not _ingest_sprints(year, client):  # sprints started in 2021
+        failures += 1
+    if failures:
+        raise IncompleteSeasonError(year, failures, len(races))
     return count
 
 
-def _ingest_sprints(year: int, client: JolpicaClient) -> None:
+def _ingest_sprints(year: int, client: JolpicaClient) -> bool:
     """Sprint results, keyed to the weekend's Grand Prix race_id.
 
     Only weekends whose race is already ingested are stored (races is the
@@ -91,7 +107,7 @@ def _ingest_sprints(year: int, client: JolpicaClient) -> None:
         sprints = client.get_sprint_results(year)
     except Exception as exc:
         logger.warning("No sprint data for %d: %s", year, exc)
-        return
+        return False
     with get_connection() as conn:
         known = {r[0] for r in conn.execute("SELECT race_id FROM races WHERE year = ?", (year,))}
         n = 0
@@ -111,10 +127,14 @@ def _ingest_sprints(year: int, client: JolpicaClient) -> None:
                 })
                 n += 1
     logger.info("Ingested %d sprint result rows for %d", n, year)
+    return True
 
 
-def _ingest_single_race(year: int, race_data: dict, client: JolpicaClient) -> None:
-    """Ingest one race's results, qualifying, standings, and pit stops."""
+def _ingest_single_race(year: int, race_data: dict, client: JolpicaClient) -> int:
+    """Ingest one race's results, qualifying, standings, and pit stops.
+
+    Returns the number of follow-up API calls that failed (0 = complete).
+    """
     round_num = int(race_data["round"])
     race_id = f"{year}_{round_num}"
     circuit_data = race_data.get("Circuit", {})
@@ -171,26 +191,24 @@ def _ingest_single_race(year: int, race_data: dict, client: JolpicaClient) -> No
                 "is_podium": 1 if pos and pos <= 3 else 0,
             })
 
-    # ── Qualifying ──────────────────────────────────────────────────
-    _ingest_qualifying(year, round_num, race_id, client)
-
-    # ── Standings snapshot (before this race) ───────────────────────
-    _ingest_standings(year, round_num, race_id, client)
-
-    # ── Pit stops ───────────────────────────────────────────────────
-    _ingest_pit_stops(year, round_num, race_id, client)
+    ok = [
+        _ingest_qualifying(year, round_num, race_id, client),
+        _ingest_standings(year, round_num, race_id, client),  # snapshot before this race
+        _ingest_pit_stops(year, round_num, race_id, client),
+    ]
+    return ok.count(False)
 
 
-def _ingest_qualifying(year: int, round_num: int, race_id: str, client: JolpicaClient) -> None:
-    """Ingest qualifying results for a race."""
+def _ingest_qualifying(year: int, round_num: int, race_id: str, client: JolpicaClient) -> bool:
+    """Ingest qualifying results for a race. False if the API call failed."""
     try:
         quali_races = client.get_qualifying(year, round_num)
     except Exception as exc:
         logger.warning("No qualifying data for %s: %s", race_id, exc)
-        return
+        return False
 
     if not quali_races:
-        return
+        return True  # Jolpica genuinely has none (e.g. much of 2021)
 
     with get_connection() as conn:
         for result in quali_races[0].get("QualifyingResults", []):
@@ -205,21 +223,22 @@ def _ingest_qualifying(year: int, round_num: int, race_id: str, client: JolpicaC
                 "q2_sec": _parse_lap_time(result.get("Q2")),
                 "q3_sec": _parse_lap_time(result.get("Q3")),
             })
+    return True
 
 
-def _ingest_standings(year: int, round_num: int, race_id: str, client: JolpicaClient) -> None:
-    """Ingest championship standings snapshot before a race."""
+def _ingest_standings(year: int, round_num: int, race_id: str, client: JolpicaClient) -> bool:
+    """Ingest championship standings snapshot before a race. False if the API call failed."""
     # Use previous round's standings as the "before race" snapshot
     prev_round = round_num - 1
     if prev_round < 1:
-        return  # No standings before first race
+        return True  # No standings before first race
 
     try:
         driver_standings = client.get_driver_standings(year, prev_round)
         constructor_standings = client.get_constructor_standings(year, prev_round)
     except Exception as exc:
         logger.warning("No standings for %s R%d: %s", year, prev_round, exc)
-        return
+        return False
 
     # Build constructor standings lookup
     constructor_lookup: dict[str, tuple[float, int]] = {}
@@ -247,15 +266,16 @@ def _ingest_standings(year: int, round_num: int, race_id: str, client: JolpicaCl
                 "constructor_pts": c_pts,
                 "constructor_pos": c_pos,
             })
+    return True
 
 
-def _ingest_pit_stops(year: int, round_num: int, race_id: str, client: JolpicaClient) -> None:
-    """Ingest pit stop data for a race."""
+def _ingest_pit_stops(year: int, round_num: int, race_id: str, client: JolpicaClient) -> bool:
+    """Ingest pit stop data for a race. False if the API call failed."""
     try:
         pit_stops = client.get_pit_stops(year, round_num)
     except Exception as exc:
         logger.warning("No pit stop data for %s: %s", race_id, exc)
-        return
+        return False
 
     with get_connection() as conn:
         for pit in pit_stops:
@@ -266,6 +286,7 @@ def _ingest_pit_stops(year: int, round_num: int, race_id: str, client: JolpicaCl
                 "lap": _safe_int(pit.get("lap")),
                 "duration_sec": _safe_float(pit.get("duration")),
             })
+    return True
 
 
 def _safe_int(val: Any) -> int | None:

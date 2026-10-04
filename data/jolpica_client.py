@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import RetryError, retry, stop_after_attempt, wait_exponential
 
 from config.settings import settings
 
@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 # longer server-side cooldown that per-request retries can't out-wait.
 _CLIENT_TIMEOUT = 15.0
 _MIN_REQUEST_INTERVAL = 0.3  # ~3.3 req/s, under the stated 4/s limit
+_BREAKER_THRESHOLD = 3       # consecutive exhausted-retry calls before failing fast
+
+
+class RateLimitExhausted(RuntimeError):
+    """Jolpica keeps refusing requests; stop for this run and resume later."""
 
 
 @dataclass
@@ -29,6 +34,7 @@ class JolpicaClient:
     base_url: str = field(default_factory=lambda: settings.jolpica_base_url)
     _client: httpx.Client | None = field(default=None, init=False, repr=False)
     _last_request_time: float = field(default=0.0, init=False, repr=False)
+    _consecutive_failures: int = field(default=0, init=False, repr=False)
 
     def _get_client(self) -> httpx.Client:
         if self._client is None or self._client.is_closed:
@@ -52,13 +58,30 @@ class JolpicaClient:
         self._last_request_time = time.monotonic()
 
     @retry(stop=stop_after_attempt(6), wait=wait_exponential(min=1, max=30))
-    def _get(self, path: str, params: dict[str, Any] | None = None) -> dict:
-        """Make a GET request and return the MRData dict."""
+    def _get_with_retry(self, path: str, params: dict[str, Any] | None = None) -> dict:
         self._throttle()
         resp = self._get_client().get(path, params=params)
         resp.raise_for_status()
         data = resp.json()
         return data.get("MRData", data)
+
+    def _get(self, path: str, params: dict[str, Any] | None = None) -> dict:
+        """Make a GET request and return the MRData dict.
+
+        Circuit breaker: once several calls in a row have exhausted their
+        retries, Jolpica's sustained (hourly) limit has been reached and
+        further calls would each burn ~1 minute of backoff before failing.
+        Fail fast instead; the ingest is resumed on the next run.
+        """
+        if self._consecutive_failures >= _BREAKER_THRESHOLD:
+            raise RateLimitExhausted(f"Jolpica rate limit exhausted; skipped {path}")
+        try:
+            data = self._get_with_retry(path, params)
+        except RetryError:
+            self._consecutive_failures += 1
+            raise
+        self._consecutive_failures = 0
+        return data
 
     def _get_all_races(self, path: str, page_size: int = 100) -> list[dict]:
         """Fetch every page of a season-level Races endpoint and merge them.

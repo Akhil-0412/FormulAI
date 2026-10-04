@@ -77,15 +77,53 @@ def _prob_maps(pred: pd.DataFrame) -> tuple[dict, dict]:
     return podium, win
 
 
+class ForecastUnavailable(RuntimeError):
+    """The schedule/qualifying could not be fetched (as opposed to: no race left)."""
+
+
+def _published(year: int) -> list[dict]:
+    path = OUTPUT_DIRS[0] / f"rolling_backtest_{year}.json"
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, ValueError):
+        return []
+
+
+def _refuse(reason: str) -> None:
+    """Stop before saving a model or overwriting published files."""
+    logger.error("Not publishing: %s", reason)
+    raise SystemExit(1)
+
+
+def _check_inputs(frame: pd.DataFrame, train_start: int, year: int, entries: list[dict]) -> None:
+    """Refuse to publish from a database that is missing data.
+
+    A partial ingest (e.g. Jolpica rate-limiting a cold start) leaves whole
+    seasons out; training on that and overwriting the published backtest
+    would silently replace good predictions with worse or empty ones.
+    """
+    missing = sorted(set(range(train_start, year)) - set(frame["year"].unique()))
+    if missing:
+        _refuse(f"no results in the database for {missing}")
+    published = sum(1 for e in _published(year) if e.get("correct", -1) >= 0)
+    scored = sum(1 for e in entries if e.get("correct", -1) >= 0)
+    if scored < published:
+        _refuse(f"only {scored} completed {year} races in the database, "
+                f"{published} already published")
+
+
 def forecast_next(model: PodiumPredictor, year: int) -> dict | None:
-    """Forecast the first round of `year` that has no results yet."""
+    """Forecast the first round of `year` that has no results yet.
+
+    Returns None when the season is over; raises ForecastUnavailable when
+    the schedule can't be fetched.
+    """
     from data.upcoming import find_upcoming_race
 
     try:
         up = find_upcoming_race(year)
     except Exception as exc:
-        logger.warning("Could not fetch the %d schedule: %s", year, exc)
-        return None
+        raise ForecastUnavailable(f"could not fetch the {year} schedule: {exc}") from exc
     if up is None:
         logger.info("No upcoming race left in %d", year)
         return None
@@ -184,12 +222,22 @@ def main() -> None:
         print(f"  Avg NDCG@3:       {done['ndcg_at_3'].mean():.4f}")
         print(f"  Avg Brier:        {done['brier_score'].mean():.4f}")
 
+    _check_inputs(frame, args.train_start, args.test_year, entries)
+
     if args.save_model or not args.no_forecast:
         model = PodiumPredictor(members=members, train_start=args.train_start).fit(frame)
         if args.save_model:
             model.save()
         if not args.no_forecast:
-            nxt = forecast_next(model, args.test_year)
+            try:
+                nxt = forecast_next(model, args.test_year)
+            except ForecastUnavailable as exc:
+                # Keep the forecast already published, if it is still ahead.
+                last_scored = max((e["round"] for e in entries), default=0)
+                nxt = next((e for e in _published(args.test_year)
+                            if e.get("is_future") and e["round"] > last_scored), None)
+                logger.warning("%s; %s", exc,
+                               "keeping the published forecast" if nxt else "no forecast this run")
             if nxt is not None:
                 entries.append(nxt)
 
