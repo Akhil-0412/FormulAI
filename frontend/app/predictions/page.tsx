@@ -1,12 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     BrainCircuit, Target, CloudRain, Droplets, MapPin, Thermometer, Wind, Gauge,
-    ChevronDown, ChevronUp, AlertTriangle, Timer, XCircle, CheckCircle2, Flag, Zap, TrendingUp
+    ChevronDown, ChevronUp, AlertTriangle, Timer, Flag, Zap, TrendingUp
 } from "lucide-react";
 import CinematicPipeline, { PipelineStage } from "./components/CinematicPipeline";
-import Image from "next/image";
+import PodiumStage from "./components/PodiumStage";
+import RaceMapPanel from "./components/RaceMapPanel";
+import PredictionLog, { LogRound, LogSeason } from "./components/PredictionLog";
+import type { RaceResult } from "./components/RaceDossier";
+import DriverAvatar from "../components/ui/DriverAvatar";
+import type { RaceMapLocation, RaceMapStatus } from "../components/ui/RaceMap";
+import { resolveDriver, prettyName, TEAM_LOGOS } from "../constants/drivers";
+import {
+    CIRCUITS,
+    CIRCUIT_SLUG_BY_JOLPICA_ID,
+    fetchSeasonSchedule,
+    ScheduleEntry,
+} from "../lib/circuits";
+import { CONSTRUCTOR_NAME } from "../lib/season";
+
+const SEASON = 2026;
 
 /* ═══════════════════════════════════════════════════════════════════════
    TYPES
@@ -97,56 +112,28 @@ interface FullRaceResponse {
    DRIVER / TEAM DATA
    ═══════════════════════════════════════════════════════════════════════ */
 
-const TEAM_LOGOS: Record<string, string> = {
-    "Red Bull Racing": "/assets/Teams/Red Bull Racing/2025redbullracinglogowhite.avif",
-    "McLaren": "/assets/Teams/McLaren/2025mclarenlogowhite.avif",
-    "Ferrari": "/assets/Teams/Ferrari/2025ferrarilogolight.avif",
-    "Mercedes": "/assets/Teams/Mercedes/2025mercedeslogowhite.avif",
-    "Aston Martin": "/assets/Teams/Aston Martin/astonmartinlogo.avif",
-    "Alpine": "/assets/Teams/Alpine/alpinelogo.avif",
-    "Williams": "/assets/Teams/Williams/williamslogo.avif",
-    "Haas": "/assets/Teams/Haas F1 Team/2025haaslogowhite.avif",
-    "RB": "/assets/Teams/Racing Bulls/2025racingbullslogowhite.avif",
-    "Audi": "/assets/Teams/Audi/2026audilogowhite.avif",
-    "Cadillac": "/assets/Teams/Cadillac/2026cadillaclogowhite.avif",
+/**
+ * Driver/team identity now routes through the shared registry
+ * (`resolveDriver` / `TEAM_LOGOS` from constants/drivers.ts, `CONSTRUCTOR_NAME`
+ * from lib/season.ts) rather than a fourth local copy. The previous local
+ * map here had two live bugs: Pérez and Bottas had `img: ""` (no photo at
+ * all — always fell to the 👤 placeholder), and a `tsunoda` entry was
+ * mislabeled with Arvid Lindblad's name and photo — a genuine
+ * wrong-identity bug, not just a stale crop.
+ *
+ * `CONSTRUCTOR_NAME` only covers the current 11 teams; a couple of aliases
+ * are kept here for older backtest rows that predate a team rename
+ * (Sauber → Audi, AlphaTauri → Racing Bulls).
+ */
+const LEGACY_CONSTRUCTOR_ALIASES: Record<string, string> = {
+    sauber: "Audi",
+    alphatauri: "Racing Bulls",
 };
 
-const CONSTRUCTOR_TO_TEAM: Record<string, string> = {
-    red_bull: "Red Bull Racing", mclaren: "McLaren", ferrari: "Ferrari",
-    mercedes: "Mercedes", aston_martin: "Aston Martin", alpine: "Alpine",
-    williams: "Williams", haas: "Haas", rb: "RB", sauber: "Audi",
-    cadillac: "Cadillac", alphatauri: "RB",
-};
-
-const DRIVER_DATA: Record<string, { name: string; team: string; img: string }> = {
-    max_verstappen: { name: "Max Verstappen", team: "Red Bull Racing", img: "/assets/Teams/Red Bull Racing/2025redbullracingmaxver01right.avif" },
-    norris: { name: "Lando Norris", team: "McLaren", img: "/assets/Teams/McLaren/2025mclarenlannor01right.avif" },
-    piastri: { name: "Oscar Piastri", team: "McLaren", img: "/assets/Teams/McLaren/2025mclarenoscpia01right.avif" },
-    leclerc: { name: "Charles Leclerc", team: "Ferrari", img: "/assets/Teams/Ferrari/2025ferrarichalec01right.avif" },
-    hamilton: { name: "Lewis Hamilton", team: "Ferrari", img: "/assets/Teams/Ferrari/2025ferrarilewham01right.avif" },
-    russell: { name: "George Russell", team: "Mercedes", img: "/assets/Teams/Mercedes/2025mercedesgeorus01right.avif" },
-    antonelli: { name: "Kimi Antonelli", team: "Mercedes", img: "/assets/Teams/Mercedes/2025mercedesandant01right.avif" },
-    alonso: { name: "Fernando Alonso", team: "Aston Martin", img: "/assets/Teams/Aston Martin/astonmartinferalo.avif" },
-    stroll: { name: "Lance Stroll", team: "Aston Martin", img: "/assets/Teams/Aston Martin/astonmartinlanstr.avif" },
-    gasly: { name: "Pierre Gasly", team: "Alpine", img: "/assets/Teams/Alpine/alpinepiegas.avif" },
-    doohan: { name: "Franco Colapinto", team: "Alpine", img: "/assets/Teams/Alpine/alpinefracol.avif" },
-    colapinto: { name: "Franco Colapinto", team: "Alpine", img: "/assets/Teams/Alpine/alpinefracol.avif" },
-    albon: { name: "Alex Albon", team: "Williams", img: "/assets/Teams/Williams/williamsalealb.avif" },
-    sainz: { name: "Carlos Sainz", team: "Williams", img: "/assets/Teams/Williams/williamscarsai.avif" },
-    ocon: { name: "Esteban Ocon", team: "Haas", img: "/assets/Teams/Haas F1 Team/2025haasestoco01right.avif" },
-    bearman: { name: "Oliver Bearman", team: "Haas", img: "/assets/Teams/Haas F1 Team/2025haasolibea01right.avif" },
-    tsunoda: { name: "Arvid Lindblad", team: "RB", img: "/assets/Teams/Racing Bulls/2026racingbullsarvlin01right.avif" },
-    arvid_lindblad: { name: "Arvid Lindblad", team: "RB", img: "/assets/Teams/Racing Bulls/2026racingbullsarvlin01right.avif" },
-    hadjar: { name: "Isack Hadjar", team: "Red Bull Racing", img: "/assets/Teams/Red Bull Racing/2026redbullracingisahad01right.avif" },
-    lawson: { name: "Liam Lawson", team: "RB", img: "/assets/Teams/Racing Bulls/2025racingbullslialaw01right.avif" },
-    hulkenberg: { name: "Nico Hulkenberg", team: "Audi", img: "/assets/Teams/Audi/2026audinichul01right.avif" },
-    bortoleto: { name: "Gabriel Bortoleto", team: "Audi", img: "/assets/Teams/Audi/2026audigabbor01right.avif" },
-    perez: { name: "Sergio Pérez", team: "Cadillac", img: "" },
-    bottas: { name: "Valtteri Bottas", team: "Cadillac", img: "" },
-};
-
-const getDriverInfo = (id: string) => DRIVER_DATA[id] || { name: id.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), team: "Unknown", img: "" };
-const getTeamFromConstructor = (cid: string) => CONSTRUCTOR_TO_TEAM[cid] || cid.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+const getTeamFromConstructor = (cid: string) =>
+    CONSTRUCTOR_NAME[cid] ??
+    LEGACY_CONSTRUCTOR_ALIASES[cid] ??
+    cid.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 const IMPACT_COLORS: Record<string, string> = {
     HIGH: "text-red-400 bg-red-500/10 border-red-500/30",
@@ -162,13 +149,30 @@ const CATEGORY_ICONS: Record<string, string> = {
    PAGE COMPONENT
    ═══════════════════════════════════════════════════════════════════════ */
 
+/** Backtests that exist for years before the live season, oldest first. */
+const PRIOR_SEASONS = [2024, 2025];
+
 export default function PredictionsPage() {
     const [backtestData, setBacktestData] = useState<BacktestRace[]>([]);
+    // Prior seasons are read-only history for the log tree — nothing else
+    // on the page (the map, the pipeline, "next race") reasons about them,
+    // so they get their own state rather than joining backtestData.
+    const [priorSeasons, setPriorSeasons] = useState<LogSeason[]>([]);
     const [fullRace, setFullRace] = useState<FullRaceResponse | null>(null);
     const [pipelineStage, setPipelineStage] = useState<PipelineStage>("idle");
     const [showFullGrid, setShowFullGrid] = useState(false);
     const [showParams, setShowParams] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    // The reveal is podium-only by default (weather/params/alternatives/full
+    // grid are real, useful data, but shouldn't compete with the reveal
+    // moment itself) — this gates all of it behind one toggle underneath
+    // the podium stage.
+    const [showBreakdown, setShowBreakdown] = useState(false);
+    // upcomingResult: the future race entry to show after animation completes
+    const [upcomingResult, setUpcomingResult] = useState<BacktestRace | null>(null);
+
+    // The season map needs real circuit coordinates, which only the live
+    // schedule has — the backtest payload carries results, not geography.
+    const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
 
     useEffect(() => {
         fetch("/data/rolling_backtest_2026.json")
@@ -177,14 +181,128 @@ export default function PredictionsPage() {
             .catch(err => console.error("Backtest load failed:", err));
     }, []);
 
+    /* Prior seasons' backtests are static, already-settled snapshots — no
+       "future" round to gate on, so anything with a real 3-driver podium
+       counts as scored. A year whose file doesn't exist (nothing's been
+       backtested there yet) is just left out rather than shown empty. */
+    useEffect(() => {
+        Promise.all(
+            PRIOR_SEASONS.map((year) =>
+                fetch(`/data/rolling_backtest_${year}.json`)
+                    .then((res) => (res.ok ? res.json() : null))
+                    .then((data: BacktestRace[] | null) =>
+                        data
+                            ? {
+                                  season: year,
+                                  rounds: data
+                                      .filter((r) => r.actual && r.actual.length >= 3)
+                                      .map((r) => ({
+                                          round: r.round,
+                                          raceName: r.race_name,
+                                          correct: r.correct,
+                                          brierScore: r.brier_score,
+                                          predicted: r.predicted,
+                                          actual: r.actual,
+                                          probabilities: r.probabilities ?? {},
+                                      })),
+                              }
+                            : null
+                    )
+                    .catch(() => null)
+            )
+        ).then((results) =>
+            setPriorSeasons(
+                results.filter((s): s is LogSeason => s !== null && s.rounds.length > 0)
+            )
+        );
+    }, []);
+
+    useEffect(() => {
+        fetchSeasonSchedule(SEASON)
+            .then(setSchedule)
+            .catch(err => console.error("Season schedule load failed:", err));
+    }, []);
+
+    /**
+     * Season map markers.
+     *
+     * Position comes from the schedule, naming from the circuit registry,
+     * and "where in the season are we" from the backtest's own future
+     * round — not from today's date. The page's whole narrative is the
+     * model's position in the season, so a round the backtest hasn't
+     * reached yet reads as upcoming here even if its calendar date has
+     * already passed. The date fallback only applies before the backtest
+     * has loaded.
+     */
+    const mapLocations = useMemo<RaceMapLocation[]>(() => {
+        const backtestByRound = new Map(backtestData.map(r => [r.round, r]));
+        const nextRound = backtestData.find(r => r.is_future)?.round;
+        const today = new Date();
+
+        return schedule
+            .filter(entry => entry.lat !== 0 || entry.long !== 0)
+            .map(entry => {
+                const circuit = CIRCUITS.find(
+                    c => c.slug === CIRCUIT_SLUG_BY_JOLPICA_ID[entry.circuitId]
+                );
+                const backtest = backtestByRound.get(entry.round);
+
+                const status: RaceMapStatus =
+                    nextRound == null
+                        ? new Date(entry.date) < today ? "completed" : "upcoming"
+                        : entry.round === nextRound ? "next"
+                        : entry.round < nextRound ? "completed"
+                        : "upcoming";
+
+                const raced = backtest && backtest.actual?.length >= 3;
+
+                return {
+                    slug: circuit?.slug ?? `round-${entry.round}`,
+                    name: circuit?.name ?? entry.raceName,
+                    locality: circuit?.locality ?? entry.raceName.replace(/ Grand Prix$/, ""),
+                    lat: entry.lat,
+                    long: entry.long,
+                    round: entry.round,
+                    date: entry.date,
+                    status,
+                    note: raced
+                        ? `${backtest!.correct}/3 podium places called`
+                        : undefined,
+                };
+            });
+    }, [schedule, backtestData]);
+
+    /**
+     * Scored rounds, keyed by map slug — clicking one of these markers on
+     * the expanded map opens its dossier. Rounds the model hasn't reached
+     * are simply absent, which is what makes their markers name-only.
+     */
+    const mapResults = useMemo<Record<string, RaceResult>>(() => {
+        const backtestByRound = new Map(backtestData.map(r => [r.round, r]));
+        const out: Record<string, RaceResult> = {};
+
+        for (const location of mapLocations) {
+            const backtest =
+                location.round != null ? backtestByRound.get(location.round) : undefined;
+            if (!backtest || !backtest.actual || backtest.actual.length < 3) continue;
+
+            out[location.slug] = {
+                predicted: backtest.predicted,
+                actual: backtest.actual,
+                correct: backtest.correct,
+                brierScore: backtest.brier_score,
+                probabilities: backtest.probabilities ?? {},
+            };
+        }
+        return out;
+    }, [mapLocations, backtestData]);
+
     const runPrediction = async () => {
-        setPipelineStage("ingesting");
+        // Reset previous result
+        setUpcomingResult(null);
         setFullRace(null);
         setShowFullGrid(false);
-        setError(null);
-
-        // Fetch static data generated by GitHub Actions
-        const fetchPromise = fetch(`/data/latest_prediction.json?t=${Date.now()}`); // Cache bust
+        setPipelineStage("ingesting");
 
         // Stage 1: Ingesting (2 seconds)
         await new Promise(r => setTimeout(r, 2000));
@@ -194,37 +312,22 @@ export default function PredictionsPage() {
         await new Promise(r => setTimeout(r, 2000));
         setPipelineStage("calibrating");
 
-        try {
-            // Wait for backend + Calibration minimum visual time
-            const [res] = await Promise.all([
-                fetchPromise,
-                new Promise(r => setTimeout(r, 1500))
-            ]);
+        // Stage 3: Calibrating (1.5 seconds)
+        await new Promise(r => setTimeout(r, 1500));
+        setPipelineStage("complete");
 
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.detail || `Server returned ${res.status}`);
-            }
-            
-            const data: FullRaceResponse = await res.json();
-
-            setPipelineStage("complete");
-
-            // Allow the exit animation to play before showing podium
-            setTimeout(() => {
-                setFullRace(data);
-                setPipelineStage("idle");
-            }, 600);
-        } catch (error: any) {
-            console.error("Full race prediction failed:", error);
-            setError(error.message || "Failed to connect to Python backend.");
+        // Allow the exit animation to play, then reveal the result
+        setTimeout(() => {
+            // Use the first future race from the backtest data
+            const future = backtestData.find(r => !r.actual || r.actual.length < 3);
+            if (future) setUpcomingResult(future);
             setPipelineStage("idle");
-        }
+        }, 600);
     };
 
     // Separate completed and future races
-    const completedRaces = backtestData.filter(r => !r.is_future).reverse();
-    const futureRaces = backtestData.filter(r => r.is_future);
+    const completedRaces = backtestData.filter(r => r.actual && r.actual.length >= 3).reverse();
+    const futureRaces = backtestData.filter(r => !r.actual || r.actual.length < 3);
 
     // Backtest aggregate stats (only completed races)
     const totalCorrect = completedRaces.reduce((s, r) => s + r.correct, 0);
@@ -234,70 +337,132 @@ export default function PredictionsPage() {
     const avgBrier = completedRaces.length > 0
         ? (completedRaces.reduce((s, r) => s + r.brier_score, 0) / completedRaces.length).toFixed(4) : "0";
 
-    const formatDriverId = (id: string) => {
-        if (!id) return "---";
-        if (id === "max_verstappen") return "VER";
-        return id.substring(0, 3).toUpperCase();
-    };
+    /* The log tree wants scored rounds newest-first alongside whatever's
+       still ahead, so the reader lands on the most recent result and can
+       scroll down into history rather than up from round 1. */
+    const logRounds: LogRound[] = [...backtestData]
+        .sort((a, b) => b.round - a.round)
+        .map((r) => ({
+            round: r.round,
+            raceName: r.race_name,
+            correct: r.correct,
+            brierScore: r.brier_score,
+            predicted: r.predicted,
+            actual: r.actual,
+            probabilities: r.probabilities ?? {},
+            isFuture: !r.actual || r.actual.length < 3,
+        }));
+
+    /* Live season first (it's the one the reader almost certainly wants
+       open), then prior years newest-first underneath it. */
+    const logSeasons: LogSeason[] = [
+        { season: SEASON, rounds: logRounds },
+        ...[...priorSeasons].sort((a, b) => b.season - a.season),
+    ];
 
     return (
-        <div className="flex flex-col gap-10 max-w-7xl mx-auto mb-20 animate-in fade-in duration-700 w-full">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 italic" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>
-                    Intelligence Center
-                </h1>
-                <p className="text-f1-muted text-lg italic tracking-wider font-semibold" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>
-                    Predictive modeling powered by a Learning-to-Rank (LTR) ensemble.
-                </p>
-            </div>
+        <div className="w-full">
+            <div className="flex flex-col gap-10 max-w-[1500px] mx-auto pb-20 px-4">
+                {/* ═════════════════════════════════════════════════════════
+                   2026 RACE DAY PREDICTION
+                   ═════════════════════════════════════════════════════════ */}
+                <section className="flex flex-col gap-6 pt-10">
+                    {(() => {
+                        const nextRace = backtestData.find(r => r.is_future);
+                        const raceLabel = nextRace ? nextRace.race_name : "2026 Race Prediction";
+                        return (
+                            /* Race identity on the left, the season map on
+                               the right — the map answers the other half of
+                               "which race is this", so it belongs in the
+                               header band rather than as a section of its
+                               own. Keeping it to roughly a third of the row
+                               is also what makes the expansion worth doing:
+                               a full-width preview has nowhere to grow. */
+                            <div className="flex flex-col lg:flex-row lg:items-stretch gap-5">
+                                <div className="flex-1 flex flex-col justify-between gap-5">
+                                    <div>
+                                        <h2 className="h-section text-fg flex items-center gap-3">
+                                            <Flag className="w-6 h-6 text-accent" />
+                                            {raceLabel} — Prediction
+                                        </h2>
+                                        <p className="label-xs mt-1.5">
+                                            {nextRace ? `Round ${nextRace.round} · 2026 Season` : "2026 Formula 1 Season"}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={runPrediction}
+                                        disabled={pipelineStage !== "idle"}
+                                        className={`self-start px-7 py-3.5 rounded-[var(--radius-chip)] font-bold text-[15px] transition-colors whitespace-nowrap ${pipelineStage !== "idle"
+                                            ? "bg-ink-3 cursor-not-allowed text-fg-subtle"
+                                            : "bg-accent hover:bg-accent-hot text-white"
+                                            }`}
+                                    >
+                                        {pipelineStage !== "idle" ? "Engine running…" : "Run prediction"}
+                                    </button>
+                                </div>
 
-            {/* ═════════════════════════════════════════════════════════════
-               2026 RACE DAY PREDICTION
-               ═════════════════════════════════════════════════════════════ */}
-            <section className="flex flex-col gap-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h2 className="text-3xl font-black text-white italic flex items-center gap-3">
-                            <Flag className="w-7 h-7 text-red-500" />
-                            2026 Monaco Grand Prix — Race Prediction
-                        </h2>
-                        <p className="text-f1-muted text-sm mt-1">Circuit de Monaco · Monte Carlo, Monaco · May 2026</p>
-                    </div>
-                    <button
-                        onClick={runPrediction}
-                        disabled={pipelineStage !== "idle"}
-                        className={`px-8 py-4 rounded-xl font-black text-lg transition-all shadow-lg whitespace-nowrap ${pipelineStage !== "idle"
-                            ? "bg-white/10 cursor-not-allowed text-white/50"
-                            : "bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)] hover:shadow-[0_0_40px_rgba(239,68,68,0.6)] hover:scale-105"
-                            }`}
-                    >
-                        {pipelineStage !== "idle" ? "🔄 Engine Running..." : "🏁 Run Prediction"}
-                    </button>
-                </div>
+                                {/* ── SEASON MAP ────────────────────────
+                                   Click expands it into a focused overlay
+                                   over this page; it never navigates. */}
+                                {mapLocations.length > 0 && (
+                                    <div className="w-full lg:w-[42%] lg:max-w-[620px] shrink-0">
+                                        <RaceMapPanel
+                                            locations={mapLocations}
+                                            season={SEASON}
+                                            results={mapResults}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
 
-                {/* Cinematic Prediction Pipeline */}
-                <CinematicPipeline stage={pipelineStage} />
+                    {/* Cinematic Prediction Pipeline */}
+                    <CinematicPipeline stage={pipelineStage} />
 
-                {/* Error State */}
-                {error && (
-                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-xl flex items-center gap-4 animate-in fade-in duration-300">
-                        <XCircle className="w-8 h-8 flex-shrink-0" />
-                        <div>
-                            <p className="font-bold">Prediction Engine Error</p>
-                            <p className="text-sm text-red-400/80 mt-1">{error}</p>
-                            {error.includes("Model not loaded") && (
-                                <p className="text-xs mt-2 text-white/50 bg-black/20 p-2 rounded border border-red-500/10 font-mono">Run: uv run python -m models_v2.train</p>
-                            )}
-                            {(error.includes("Failed to fetch") || error.includes("connect")) && (
-                                <p className="text-xs mt-2 text-white/50 bg-black/20 p-2 rounded border border-red-500/10 font-mono">Run: uv run uvicorn api.main:app --reload</p>
-                            )}
-                        </div>
+                {/* ── UPCOMING RESULT — shown after animation completes ── */}
+                {upcomingResult && (
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <PodiumStage
+                            raceName={upcomingResult.race_name}
+                            podium={upcomingResult.predicted.slice(0, 3).map((driverId) => ({
+                                driverId,
+                                probability: upcomingResult.probabilities?.[driverId] ?? null,
+                            }))}
+                        />
                     </div>
                 )}
 
                 {/* ── RESULTS ───────────────────────────────────────────── */}
                 {fullRace && (
-                    <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
+                        {/* ── PODIUM REVEAL — the only thing shown at first ── */}
+                        <PodiumStage
+                            raceName={`${fullRace.race.circuit_name} — ${fullRace.race.country}`}
+                            podium={fullRace.podium.slice(0, 3).map((driverId) => {
+                                const entry = fullRace.full_grid.find((g) => g.driver_id === driverId);
+                                const rank = fullRace.podium.indexOf(driverId);
+                                const prob = entry
+                                    ? rank === 0 ? entry.p1_probability : rank === 1 ? entry.p2_probability : entry.p3_probability
+                                    : null;
+                                return { driverId, probability: prob };
+                            })}
+                        />
+
+                        <button
+                            onClick={() => setShowBreakdown((v) => !v)}
+                            className="self-center flex items-center gap-1.5 text-[13px] font-semibold text-fg-muted hover:text-fg transition-colors"
+                        >
+                            {showBreakdown ? (
+                                <>Hide full breakdown <ChevronUp className="w-4 h-4" /></>
+                            ) : (
+                                <>Show full breakdown — weather, model inputs, full grid <ChevronDown className="w-4 h-4" /></>
+                            )}
+                        </button>
+
+                        {showBreakdown && (
+                        <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-top-2 duration-300">
 
                         {/* ── Weather & Circuit ───────────────────────── */}
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -350,12 +515,11 @@ export default function PredictionsPage() {
                             )}
                         </div>
 
-                        {/* ── PODIUM REVEAL ───────────────────────────── */}
+                        {/* ── DETAILED PODIUM — per-driver SHAP reasoning, DNF risk ── */}
                         <div className="relative">
-                            <div className="absolute inset-0 bg-gradient-to-b from-purple-600/10 to-transparent rounded-3xl" />
                             <div className="glass-card p-8 relative overflow-hidden">
                                 <h3 className="text-xs font-bold text-f1-muted uppercase tracking-[0.3em] mb-8 text-center">
-                                    Predicted Podium — 2026 Australia Grand Prix
+                                    Podium breakdown — model reasoning per driver
                                 </h3>
 
                                 <div className="flex flex-col md:flex-row items-start justify-center gap-4 md:gap-6">
@@ -378,17 +542,15 @@ export default function PredictionsPage() {
                                     </h3>
                                     <div className="flex flex-col gap-3">
                                         {fullRace.alternatives.map((alt, i) => {
-                                            const drv = getDriverInfo(alt.driver_id);
+                                            const drv = resolveDriver(alt.driver_id);
                                             return (
                                                 <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
                                                     <div className="flex items-center gap-3">
                                                         <div className="text-sm font-bold text-white/50 w-6">P{i + 4}</div>
-                                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-white/10 border border-white/20 flex-shrink-0">
-                                                            {drv.img ? <img src={drv.img} alt={drv.name} className="w-full h-full object-cover object-top" /> : <div className="w-full h-full flex items-center justify-center text-xs">👤</div>}
-                                                        </div>
+                                                        <DriverAvatar driverKey={alt.driver_id} size={32} />
                                                         <div>
-                                                            <div className="text-white font-bold text-sm">{drv.name}</div>
-                                                            <div className="text-[10px] text-f1-muted uppercase">{drv.team}</div>
+                                                            <div className="text-white font-bold text-sm">{drv?.name ?? prettyName(alt.driver_id)}</div>
+                                                            <div className="text-[10px] text-f1-muted uppercase">{drv?.team ?? "—"}</div>
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
@@ -429,8 +591,8 @@ export default function PredictionsPage() {
                             {showFullGrid && (
                                 <div className="px-5 pb-5 flex flex-col gap-2">
                                     {fullRace.full_grid.map((driver) => {
-                                        const drv = getDriverInfo(driver.driver_id);
-                                        const teamName = drv.team !== "Unknown" ? drv.team : getTeamFromConstructor(driver.constructor_id);
+                                        const drv = resolveDriver(driver.driver_id);
+                                        const teamName = drv?.team ?? getTeamFromConstructor(driver.constructor_id);
                                         const logo = TEAM_LOGOS[teamName];
                                         const isPodium = driver.position <= 3;
                                         const isPoints = driver.position <= 10;
@@ -449,17 +611,11 @@ export default function PredictionsPage() {
                                                 </div>
 
                                                 {/* Driver Image */}
-                                                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
-                                                    {drv.img ? (
-                                                        <img src={drv.img} alt={drv.name} className="w-full h-full object-cover object-top" />
-                                                    ) : (
-                                                        <div className="w-full h-full bg-white/10 flex items-center justify-center text-xl">👤</div>
-                                                    )}
-                                                </div>
+                                                <DriverAvatar driverKey={driver.driver_id} size={48} />
 
                                                 {/* Name + Team */}
                                                 <div className="flex flex-col flex-1 min-w-0">
-                                                    <span className="font-bold text-white text-sm truncate">{drv.name}</span>
+                                                    <span className="font-bold text-white text-sm truncate">{drv?.name ?? prettyName(driver.driver_id)}</span>
                                                     <div className="flex items-center gap-2">
                                                         {logo && <img src={logo} className="h-3 object-contain brightness-0 invert opacity-50" alt={teamName} />}
                                                         <span className="text-[10px] text-f1-muted uppercase tracking-wider truncate">{teamName}</span>
@@ -499,6 +655,8 @@ export default function PredictionsPage() {
                                 </div>
                             )}
                         </div>
+                        </div>
+                        )}
                     </div>
                 )}
             </section>
@@ -516,126 +674,60 @@ export default function PredictionsPage() {
                 </p>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="glass-panel rounded-2xl p-4 text-center">
-                        <p className="text-xs text-f1-muted uppercase tracking-wider mb-1">Overall Accuracy</p>
-                        <p className="text-3xl font-black text-emerald-400 font-mono">{overallAccuracy}%</p>
+                    <div className="bg-[#111118] border border-white/10 rounded-xl p-6 text-center shadow-lg transition-all hover:border-white/20 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(16,185,129,0.15)] group">
+                        <p className="text-[11px] text-f1-muted uppercase tracking-[0.2em] mb-2 font-bold group-hover:text-white/70 transition-colors">Overall Accuracy</p>
+                        <p className="text-4xl font-black text-emerald-400 font-mono tracking-tighter drop-shadow-[0_0_12px_rgba(16,185,129,0.4)]">{overallAccuracy}%</p>
                     </div>
-                    <div className="glass-panel rounded-2xl p-4 text-center">
-                        <p className="text-xs text-f1-muted uppercase tracking-wider mb-1">Perfect Podiums</p>
-                        <p className="text-3xl font-black text-amber-400 font-mono">{perfectRaces}</p>
+                    <div className="bg-[#111118] border border-white/10 rounded-xl p-6 text-center shadow-lg transition-all hover:border-white/20 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(251,191,36,0.15)] group">
+                        <p className="text-[11px] text-f1-muted uppercase tracking-[0.2em] mb-2 font-bold group-hover:text-white/70 transition-colors">Perfect Podiums</p>
+                        <p className="text-4xl font-black text-amber-400 font-mono tracking-tighter drop-shadow-[0_0_12px_rgba(251,191,36,0.4)]">{perfectRaces}</p>
                     </div>
-                    <div className="glass-panel rounded-2xl p-4 text-center">
-                        <p className="text-xs text-f1-muted uppercase tracking-wider mb-1">Avg Brier Score</p>
-                        <p className="text-3xl font-black text-blue-400 font-mono">{avgBrier}</p>
+                    <div className="bg-[#111118] border border-white/10 rounded-xl p-6 text-center shadow-lg transition-all hover:border-white/20 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(96,165,250,0.15)] group">
+                        <p className="text-[11px] text-f1-muted uppercase tracking-[0.2em] mb-2 font-bold group-hover:text-white/70 transition-colors">Avg Brier Score</p>
+                        <p className="text-4xl font-black text-blue-400 font-mono tracking-tighter drop-shadow-[0_0_12px_rgba(96,165,250,0.4)]">{avgBrier}</p>
                     </div>
-                    <div className="glass-panel rounded-2xl p-4 text-center">
-                        <p className="text-xs text-f1-muted uppercase tracking-wider mb-1">Races Evaluated</p>
-                        <p className="text-3xl font-black text-white font-mono">{completedRaces.length}</p>
+                    <div className="bg-[#111118] border border-white/10 rounded-xl p-6 text-center shadow-lg transition-all hover:border-white/20 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(255,255,255,0.1)] group">
+                        <p className="text-[11px] text-f1-muted uppercase tracking-[0.2em] mb-2 font-bold group-hover:text-white/70 transition-colors">Races Evaluated</p>
+                        <p className="text-4xl font-black text-white font-mono tracking-tighter drop-shadow-[0_0_12px_rgba(255,255,255,0.3)]">{completedRaces.length}</p>
                     </div>
                 </div>
 
-                {/* ── UPCOMING RACE PREDICTION ── */}
-                {futureRaces.map((race) => (
-                    <div key={race.round} className="relative mt-4 p-6 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-amber-900/20 via-transparent to-orange-900/10 shadow-[0_0_30px_rgba(245,158,11,0.15)]">
-                        <div className="absolute -top-3 left-6 px-3 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full">
-                            <span className="text-xs font-black text-black uppercase tracking-wider">🔮 Upcoming Race Prediction</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-amber-500/20 pb-3 mt-2">
-                            <h3 className="text-xl font-black text-amber-300 italic">{race.race_name}</h3>
-                            <span className="text-xs text-amber-400/80 font-mono">Trained on R1–R{race.round - 1} data</span>
-                        </div>
-                        <h4 className="text-xs text-amber-400/60 uppercase tracking-widest text-center font-bold mt-4 mb-3">Predicted Podium</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            {race.predicted.map((driverId, idx) => {
-                                const drv = getDriverInfo(driverId);
-                                const prob = race.probabilities?.[driverId] || 0;
-                                const logo = TEAM_LOGOS[drv.team];
-                                const medals: Record<number, string> = { 0: "🥇", 1: "🥈", 2: "🥉" };
-                                return (
-                                    <div key={idx} className="flex items-center gap-3 p-4 rounded-xl glass-panel border border-amber-500/20 hover:border-amber-400/40 transition-all hover:shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-                                        <div className="text-2xl">{medals[idx]}</div>
-                                        <div className={`relative w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400/50`}>
-                                            {drv.img ? <img src={drv.img} alt={drv.name} className="w-full h-full object-cover object-top" /> : <div className="w-full h-full bg-white/10 flex items-center justify-center text-xl">👤</div>}
-                                        </div>
-                                        <div className="flex flex-col flex-1 min-w-0">
-                                            <span className="font-bold text-white truncate">{drv.name}</span>
-                                            <div className="flex gap-2 items-center">
-                                                {logo && <img src={logo} className="h-3 object-contain brightness-0 invert opacity-60" alt={drv.team} />}
-                                                <span className="text-[10px] text-f1-muted uppercase tracking-wider truncate">{drv.team}</span>
-                                            </div>
-                                        </div>
-                                        <span className="text-lg font-mono font-black text-amber-400">{(prob * 100).toFixed(1)}%</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ))}
-
-                {/* Backtest race-by-race with VS layout */}
-                <div className="flex flex-col gap-8 mt-2">
-                    {completedRaces.map((race) => (
-                        <div key={race.round} className="flex flex-col gap-4 relative">
-                            <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                                <h3 className="text-xl font-black text-white italic">{race.race_name}</h3>
-                                <div className={`px-3 py-1 rounded-full text-xs font-bold ${race.correct === 3 ? 'bg-emerald-500/20 text-emerald-400' : race.correct >= 2 ? 'bg-amber-500/20 text-amber-400' : race.correct >= 1 ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400'}`}>
-                                    {race.correct}/3 Correct · Brier: {race.brier_score.toFixed(3)}
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center w-full">
-                                <div className="flex flex-col gap-3">
-                                    <h4 className="text-xs text-f1-muted uppercase tracking-widest text-center font-bold mb-2">Predicted Podium</h4>
-                                    {race.predicted.map((driverId, idx) => {
-                                        const drv = getDriverInfo(driverId);
-                                        const isCorrect = race.actual.includes(driverId);
-                                        const prob = race.probabilities?.[driverId] || 0;
-                                        const logo = TEAM_LOGOS[drv.team];
-                                        return (
-                                            <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${isCorrect ? "bg-emerald-900/30 shadow-[0_0_20px_rgba(16,185,129,0.2)] border-emerald-500/40" : "bg-red-900/30 shadow-[0_0_20px_rgba(239,68,68,0.3)] border-red-500/40"}`}>
-                                                <div className="text-sm font-black text-white/50 w-6 text-center">P{idx + 1}</div>
-                                                <div className={`relative w-12 h-12 rounded-full overflow-hidden border-2 ${isCorrect ? 'border-emerald-400' : 'border-red-500 grayscale'}`}>
-                                                    {drv.img ? <img src={drv.img} alt={drv.name} className="w-full h-full object-cover object-top" /> : <div className="w-full h-full bg-white/10 flex items-center justify-center text-xl">👤</div>}
-                                                </div>
-                                                <div className="flex flex-col flex-1 min-w-0">
-                                                    <span className="font-bold text-white truncate text-sm">{drv.name}</span>
-                                                    <div className="flex gap-2 items-center">
-                                                        {logo && <img src={logo} className="h-3 object-contain brightness-0 invert opacity-60" alt={drv.team} />}
-                                                        <span className="text-[10px] text-f1-muted uppercase tracking-wider truncate">{drv.team}</span>
-                                                    </div>
-                                                </div>
-                                                {prob > 0 && <span className={`text-base font-mono font-bold ${isCorrect ? 'text-emerald-400' : 'text-red-400'}`}>{(prob * 100).toFixed(1)}%</span>}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <div className="text-2xl font-black italic text-white/20 px-4 pt-10" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>VS</div>
-                                <div className="flex flex-col gap-3">
-                                    <h4 className="text-xs text-f1-muted uppercase tracking-widest text-center font-bold mb-2">Actual Podium</h4>
-                                    {race.actual.map((driverId, idx) => {
-                                        const drv = getDriverInfo(driverId);
-                                        const logo = TEAM_LOGOS[drv.team];
-                                        return (
-                                            <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-                                                <div className="text-sm font-black text-white/80 w-6 text-center">P{idx + 1}</div>
-                                                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-white/20">
-                                                    {drv.img ? <img src={drv.img} alt={drv.name} className="w-full h-full object-cover object-top" /> : <div className="w-full h-full bg-white/10 flex items-center justify-center text-xl">👤</div>}
-                                                </div>
-                                                <div className="flex flex-col flex-1 min-w-0">
-                                                    <span className="font-bold text-white truncate text-sm">{drv.name}</span>
-                                                    <div className="flex gap-2 items-center">
-                                                        {logo && <img src={logo} className="h-3 object-contain brightness-0 invert opacity-60" alt={drv.team} />}
-                                                        <span className="text-[10px] text-f1-muted uppercase tracking-wider truncate">{drv.team}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                {/* Per-race breakdown now lives in the season map above:
+                    click any raced (green) marker to open that round's
+                    dossier — actual podium, model's call, and confidence per
+                    driver. Repeating it here as a scrolling stack of cards
+                    was the same data twice, and its "race timings" toggle
+                    was permanently stuck on placeholder TBA text since that
+                    telemetry was never in the backtest payload. */}
+                {completedRaces.length > 0 && (
+                    <p className="text-[13px] text-fg-muted -mt-2">
+                        Click a raced round on the season map above for the
+                        full breakdown — actual podium, the model's call, and
+                        its confidence for every driver.
+                    </p>
+                )}
             </section>
+
+            {/* ═════════════════════════════════════════════════════════
+               PREDICTION LOG
+               The full record behind the stats above: every scored round,
+               browsable season → round → the model's ranked field against
+               who actually finished on the podium.
+               ═════════════════════════════════════════════════════════ */}
+            {logSeasons.some((s) => s.rounds.length > 0) && (
+                <section className="flex flex-col gap-4">
+                    <div>
+                        <h2 className="h-section text-fg">Prediction log</h2>
+                        <p className="label-xs mt-1">
+                            Every round's full field, ranked by the odds the
+                            model gave it — expand a round to see how close
+                            the ranking landed against who actually podiumed
+                        </p>
+                    </div>
+                    <PredictionLog seasons={logSeasons} />
+                </section>
+            )}
+            </div>
         </div>
     );
 }
@@ -657,29 +749,31 @@ function WeatherCard({ icon, label, value, highlight }: { icon: React.ReactNode;
 }
 
 function PodiumCard({ driverId, position, grid, constructorId }: { driverId: string; position: number; grid: FullGridDriver[]; constructorId: string }) {
-    const drv = getDriverInfo(driverId);
-    const teamName = drv.team !== "Unknown" ? drv.team : getTeamFromConstructor(constructorId);
+    const drv = resolveDriver(driverId);
+    const teamName = drv?.team ?? getTeamFromConstructor(constructorId);
     const logo = TEAM_LOGOS[teamName];
     const gridEntry = grid.find(g => g.driver_id === driverId);
     const [showReasoning, setShowReasoning] = useState(false);
 
     const heights: Record<number, string> = { 1: "md:order-2", 2: "md:order-1", 3: "md:order-3" };
-    const sizes: Record<number, string> = { 1: "w-28 h-28 md:w-36 md:h-36", 2: "w-24 h-24 md:w-28 md:h-28", 3: "w-20 h-20 md:w-24 md:h-24" };
+    const sizes: Record<number, number> = { 1: 128, 2: 104, 3: 92 };
     const medals: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
-    const borders: Record<number, string> = { 1: "border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.3)]", 2: "border-gray-300 shadow-[0_0_15px_rgba(209,213,219,0.2)]", 3: "border-amber-600 shadow-[0_0_15px_rgba(217,119,6,0.2)]" };
+    const ringColor: Record<number, string> = { 1: "#facc15", 2: "#d1d5db", 3: "#d97706" };
 
     return (
         <div className={`flex flex-col items-center gap-3 w-full md:w-[30%] ${heights[position]}`}>
             <div className="text-4xl">{medals[position]}</div>
-            <div className={`relative ${sizes[position]} rounded-full overflow-hidden border-4 ${borders[position]}`}>
-                {drv.img ? (
-                    <img src={drv.img} alt={drv.name} className="w-full h-full object-cover object-top" />
-                ) : (
-                    <div className="w-full h-full bg-white/10 flex items-center justify-center text-3xl">👤</div>
-                )}
+            {/* Medal colour (gold/silver/bronze), not team colour — a podium
+                position should read as 1st/2nd/3rd at a glance regardless of
+                which team is standing on it. */}
+            <div
+                className="rounded-full p-1"
+                style={{ backgroundColor: ringColor[position] }}
+            >
+                <DriverAvatar driverKey={driverId} size={sizes[position]} />
             </div>
             <div className="text-center w-full">
-                <p className="text-lg font-black text-white">{drv.name}</p>
+                <p className="text-lg font-black text-white">{drv?.name ?? prettyName(driverId)}</p>
                 <div className="flex items-center justify-center gap-2 mt-1">
                     {logo && <img src={logo} className="h-4 object-contain brightness-0 invert opacity-70" alt={teamName} />}
                     <span className="text-xs text-f1-muted uppercase tracking-wider">{teamName}</span>
@@ -749,6 +843,65 @@ function PodiumCard({ driverId, position, grid, constructorId }: { driverId: str
                     )}
                 </div>
             )}
+        </div>
+    );
+}
+
+const UPCOMING_CARD_STYLES: Record<number, { glow: string; order: string; scale: string; badge: string; badgeColor: string }> = {
+    1: { glow: "#facc15", order: "md:order-2", scale: "scale-100 z-10 md:scale-110 md:-translate-y-6", badge: "1", badgeColor: "#facc15" },
+    2: { glow: "#e5e7eb", order: "md:order-1", scale: "scale-95 z-0 md:scale-100 md:translate-y-4", badge: "2", badgeColor: "#e5e7eb" },
+    3: { glow: "#d97706", order: "md:order-3", scale: "scale-90 z-0 md:scale-95 md:translate-y-8", badge: "3", badgeColor: "#d97706" },
+};
+
+function UpcomingPodiumCard({ driverId, position, probability }: { driverId: string; position: number; probability: number }) {
+    const d = resolveDriver(driverId);
+    const logo = d ? TEAM_LOGOS[d.team] : undefined;
+    const style = UPCOMING_CARD_STYLES[position];
+
+    return (
+        <div className={`relative flex flex-col w-full md:w-[260px] rounded-xl overflow-hidden bg-[#111118] border border-white/10 ${style.order} ${style.scale} shadow-2xl`}>
+            {/* Top right badge */}
+            <div 
+                className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center font-black text-black z-20 shadow-lg text-sm"
+                style={{ backgroundColor: style.badgeColor }}
+            >
+                {style.badge}
+            </div>
+
+            {/* Background Glow & Large Shadow Text */}
+            <div className="relative h-[240px] w-full flex items-end justify-center overflow-hidden bg-gradient-to-b from-transparent to-[#1a1a24]">
+                <div 
+                    className="absolute inset-0 mix-blend-screen pointer-events-none"
+                    style={{ background: `radial-gradient(circle at center 60%, ${style.glow}44 0%, transparent 65%)` }}
+                />
+                <div className="absolute top-2 left-2 font-black italic text-[140px] leading-none opacity-5 pointer-events-none select-none -tracking-widest text-white">
+                    P{position}
+                </div>
+                <div className="relative z-10 -mb-2 w-[75%] max-w-[190px]">
+                    <DriverAvatar driverKey={driverId} size={240} />
+                </div>
+            </div>
+
+            {/* Info Footer */}
+            <div className="relative z-20 bg-[#1a1a24] p-5 text-center border-t border-white/5">
+                <p className="text-[18px] font-black text-white italic tracking-wide uppercase leading-tight">
+                    {d?.name ?? prettyName(driverId)}
+                </p>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                    {logo && <img src={logo} alt="" className="h-3 object-contain brightness-0 invert opacity-60" />}
+                    <span className="text-[11px] text-white/50 uppercase tracking-[0.2em] font-bold">
+                        {d?.team ?? "—"}
+                    </span>
+                </div>
+                {probability > 0 && (
+                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between px-2">
+                        <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Win Prob</span>
+                        <span className="text-[13px] font-mono font-bold text-accent">
+                            {(probability * 100).toFixed(1)}%
+                        </span>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

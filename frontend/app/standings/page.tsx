@@ -1,163 +1,173 @@
-import fs from 'fs';
-import path from 'path';
-import Image from 'next/image';
-import { Trophy, Medal, Flag } from "lucide-react";
+"use client";
 
-const DRIVER_STANDINGS = [
-    { pos: 1, driver: "Kimi Antonelli", team: "Mercedes", points: 72 },
-    { pos: 2, driver: "George Russell", team: "Mercedes", points: 63 },
-    { pos: 3, driver: "Charles Leclerc", team: "Ferrari", points: 49 },
-    { pos: 4, driver: "Lewis Hamilton", team: "Ferrari", points: 41 },
-    { pos: 5, driver: "Lando Norris", team: "McLaren", points: 25 },
-    { pos: 6, driver: "Oscar Piastri", team: "McLaren", points: 21 },
-    { pos: 7, driver: "Oliver Bearman", team: "Haas", points: 17 },
-    { pos: 8, driver: "Pierre Gasly", team: "Alpine", points: 15 },
-    { pos: 9, driver: "Max Verstappen", team: "Red Bull Racing", points: 12 },
-    { pos: 10, driver: "Liam Lawson", team: "RB", points: 10 },
-];
+import { useEffect, useMemo, useState } from "react";
+import DriverAvatar from "../components/ui/DriverAvatar";
+import { resolveDriver, prettyName, TEAM_LOGOS } from "../constants/drivers";
+import {
+    fetchSeasonResults,
+    computeStandings,
+    computeConstructorStandings,
+    RoundResult,
+} from "../lib/season";
+import { SectionHeading, Placeholder, EmptyState } from "../components/ui/Primitives";
 
-const TEAM_STANDINGS = [
-    { pos: 1, team: "Mercedes", points: 135, color: "border-l-f1-teal" },
-    { pos: 2, team: "Ferrari", points: 90, color: "border-l-f1-red" },
-    { pos: 3, team: "McLaren", points: 56, color: "border-l-f1-papaya" },
-    { pos: 4, team: "Haas", points: 18, color: "border-l-[#B6BABD]" },
-    { pos: 5, team: "Alpine", points: 16, color: "border-l-[#0093CC]" },
-    { pos: 6, team: "Red Bull Racing", points: 16, color: "border-l-[#0600EF]" },
-    { pos: 7, team: "RB", points: 14, color: "border-l-[#6692FF]" },
-    { pos: 8, team: "Audi", points: 2, color: "border-l-[#FF0000]" },
-    { pos: 9, team: "Williams", points: 2, color: "border-l-[#64C4FF]" },
-];
-
-const FOLDER_MAP: Record<string, string> = {
-    "Red Bull Racing": "Red Bull Racing",
-    "Mercedes": "Mercedes",
-    "Ferrari": "Ferrari",
-    "McLaren": "McLaren",
-    "Aston Martin": "Aston Martin",
-    "Alpine": "Alpine",
-    "Williams": "Williams",
-    "Haas": "Haas F1 Team",
-    "RB": "Racing Bulls",
-    "Audi": "Audi",
-    "Cadillac": "Cadillac"
-};
+/**
+ * Standings — driver and constructor tables from the same season results the
+ * dashboard's Season form chart uses, so the two pages can't disagree.
+ *
+ * The previous version of this page read mock arrays and matched portraits
+ * against the filesystem at request time by fuzzy-matching first-name +
+ * last-name substrings against actual filenames (`kim` + `ant` for "Kimi
+ * Antonelli"). That's exactly why Antonelli's avatar was broken — the asset
+ * is `2025mercedesandant01right.avif`, keyed to "Andrea" (his full legal
+ * first name), not "Kimi". Routing through the shared driver registry here
+ * fixes it, since resolution goes through explicit ids rather than
+ * re-guessing a filename convention per render.
+ */
 
 export default function StandingsPage() {
-    const publicDir = path.join(process.cwd(), 'public');
-    const teamsAssetDir = path.join(publicDir, 'assets', 'Teams');
+    const [seasonRounds, setSeasonRounds] = useState<RoundResult[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const processedDrivers = DRIVER_STANDINGS.map(d => {
-        const folderName = FOLDER_MAP[d.team];
-        const teamSpecificDir = path.join(teamsAssetDir, folderName);
-        let driverPath = null;
+    useEffect(() => {
+        (async () => {
+            try {
+                setSeasonRounds(await fetchSeasonResults(2026));
+            } catch (err) {
+                console.error("Failed to fetch season results:", err);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
 
-        if (fs.existsSync(teamSpecificDir)) {
-            const files = fs.readdirSync(teamSpecificDir);
+    const driverStandings = useMemo(
+        () => computeStandings(seasonRounds),
+        [seasonRounds]
+    );
+    const constructorStandings = useMemo(
+        () => computeConstructorStandings(seasonRounds),
+        [seasonRounds]
+    );
 
-            // Refined matching:
-            // 1. Try first 3 letters of first name + first 3 letters of last name (filesystem pattern)
-            // 2. Try just the last name
-            // 3. Try any part of the name
-            const nameParts = d.driver.toLowerCase().split(' ');
-            const first3 = nameParts[0].substring(0, 3);
-            const last3 = nameParts[nameParts.length - 1].substring(0, 3);
-            const combined = first3 + last3;
-
-            const match = files.find(f => {
-                const fname = f.toLowerCase();
-                if (fname.includes('car') || fname.includes('logo')) return false;
-                return fname.includes(combined) ||
-                    fname.includes(nameParts[nameParts.length - 1]) ||
-                    fname.includes(nameParts[0]);
-            });
-
-            if (match) driverPath = `/assets/Teams/${folderName}/${match}`;
-        }
-        return { ...d, imagePath: driverPath };
-    });
-
-    const processedTeams = TEAM_STANDINGS.map(t => {
-        const folderName = FOLDER_MAP[t.team];
-        const teamSpecificDir = path.join(teamsAssetDir, folderName);
-        let logoPath = null;
-
-        if (fs.existsSync(teamSpecificDir)) {
-            const files = fs.readdirSync(teamSpecificDir);
-            const match = files.find(f => f.toLowerCase().includes('logo'));
-            if (match) logoPath = `/assets/Teams/${folderName}/${match}`;
-        }
-        return { ...t, logoPath };
-    });
+    const lastRound = seasonRounds[seasonRounds.length - 1];
 
     return (
-        <div className="flex flex-col gap-10 max-w-7xl mx-auto mb-20 animate-in fade-in duration-700">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white italic tracking-tighter" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>
-                    Championship Standings
-                </h1>
-                <p className="text-f1-muted text-lg italic tracking-wider font-semibold" style={{ fontFamily: 'Magneto, cursive, sans-serif' }}>After Round 3 — Japanese Grand Prix · Suzuka</p>
+        <div className="max-w-[1500px] mx-auto pb-10">
+            <div className="mb-6">
+                <h1 className="h-display text-fg mb-2">Standings</h1>
+                {lastRound ? (
+                    <p className="label-xs">
+                        After round {lastRound.round} — {lastRound.raceName}
+                        {lastRound.circuitName ? ` · ${lastRound.circuitName}` : ""}
+                    </p>
+                ) : (
+                    <p className="label-xs">2026 season</p>
+                )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Drivers */}
-                <div className="glass-panel rounded-2xl p-6 overflow-hidden relative">
-                    <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                        <Medal className="w-6 h-6 text-f1-red" /> Drivers
-                    </h2>
-                    <div className="flex flex-col gap-3">
-                        {processedDrivers.map((d, i) => (
-                            <div key={d.driver} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-300 group">
-                                <div className="flex items-center gap-4">
-                                    <span className={`text-xl font-bold w-6 text-center ${i === 0 ? "text-f1-papaya" : "text-f1-muted"}`}>{d.pos}</span>
+                <section className="card p-5 sm:p-6">
+                    <SectionHeading title="Drivers" meta={`${driverStandings.length || "—"} entries`} />
 
-                                    {/* Driver Face */}
-                                    <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-f1-red transition-colors bg-f1-navy">
-                                        {d.imagePath ? (
-                                            <Image src={d.imagePath} alt={d.driver} fill className="object-cover object-top" unoptimized />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-xs text-white/20">👤</div>
+                    {driverStandings.length > 0 ? (
+                        <div className="flex flex-col gap-2">
+                            {driverStandings.map((row, i) => {
+                                const d = resolveDriver(row.driverId);
+                                const logo = d ? TEAM_LOGOS[d.team] : undefined;
+                                return (
+                                    <div
+                                        key={row.driverId}
+                                        className="card-raised card-interactive flex items-center gap-3 p-3"
+                                    >
+                                        <span className="w-6 text-[14px] font-bold text-fg-subtle num shrink-0 text-center">
+                                            {i + 1}
+                                        </span>
+                                        <DriverAvatar driverKey={row.driverId} size={40} ring />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[14px] font-semibold text-fg truncate">
+                                                {d?.name ?? prettyName(row.driverId)}
+                                            </p>
+                                            {/* Nationality rather than team name here — the
+                                                logo to the right already carries team identity,
+                                                so this line can carry different information
+                                                instead of repeating it in text. */}
+                                            <p className="text-[11px] text-fg-muted truncate">
+                                                {d?.nationality ?? "—"}
+                                            </p>
+                                        </div>
+                                        {/* Team badge on the driver row — the constructor's
+                                            own mark, not just their name in text. */}
+                                        {logo && (
+                                            <img
+                                                src={logo}
+                                                alt=""
+                                                aria-hidden
+                                                className="w-6 h-6 object-contain opacity-50 shrink-0"
+                                            />
                                         )}
+                                        <span className="text-[16px] font-bold text-fg num shrink-0 w-10 text-right">
+                                            {row.points}
+                                        </span>
                                     </div>
-
-                                    <div>
-                                        <h4 className="text-white font-semibold text-lg">{d.driver}</h4>
-                                        <p className="text-sm text-f1-muted">{d.team}</p>
-                                    </div>
-                                </div>
-                                <div className="text-2xl font-black w-16 text-right text-white tabular-nums">{d.points}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                                );
+                            })}
+                        </div>
+                    ) : loading ? (
+                        <Placeholder lines={6} />
+                    ) : (
+                        <EmptyState message="No results yet this season." />
+                    )}
+                </section>
 
                 {/* Constructors */}
-                <div className="glass-panel rounded-2xl p-6 overflow-hidden relative">
-                    <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                        <Flag className="w-6 h-6 text-f1-teal" /> Constructors
-                    </h2>
-                    <div className="flex flex-col gap-3">
-                        {processedTeams.map((t, i) => (
-                            <div key={t.team} className={`flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 border-l-4 ${t.color} hover:bg-white/10 transition-all duration-300 group`}>
-                                <div className="flex items-center gap-4">
-                                    <span className={`text-xl font-bold w-6 text-center ${i === 0 ? "text-f1-papaya" : "text-f1-muted"}`}>{t.pos}</span>
-                                    <h4 className="text-white font-semibold text-lg">{t.team}</h4>
-                                </div>
+                <section className="card p-5 sm:p-6">
+                    <SectionHeading title="Constructors" meta={`${constructorStandings.length || "—"} teams`} />
 
-                                <div className="flex items-center gap-6">
-                                    {/* Team Logo at the end of the bar */}
-                                    {t.logoPath && (
-                                        <div className="relative w-8 h-8 opacity-40 group-hover:opacity-100 transition-opacity">
-                                            <Image src={t.logoPath} alt={t.team} fill className="object-contain" unoptimized />
+                    {constructorStandings.length > 0 ? (
+                        <div className="flex flex-col gap-2">
+                            {constructorStandings.map((row, i) => {
+                                const logo = TEAM_LOGOS[row.name];
+                                return (
+                                    <div
+                                        key={row.constructorId}
+                                        className="card-raised card-interactive flex items-center gap-3 p-3"
+                                    >
+                                        <span className="w-6 text-[14px] font-bold text-fg-subtle num shrink-0 text-center">
+                                            {i + 1}
+                                        </span>
+                                        {/* Symbol — name — points. */}
+                                        <div className="w-9 h-9 rounded-full bg-ink-4 grid place-items-center shrink-0">
+                                            {logo ? (
+                                                <img
+                                                    src={logo}
+                                                    alt=""
+                                                    aria-hidden
+                                                    className="w-6 h-6 object-contain"
+                                                />
+                                            ) : (
+                                                <span className="text-[11px] font-bold text-fg-subtle">
+                                                    {row.name.slice(0, 2).toUpperCase()}
+                                                </span>
+                                            )}
                                         </div>
-                                    )}
-                                    <div className="text-2xl font-black w-16 text-right text-white tabular-nums">{t.points}</div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
+                                        <p className="text-[14px] font-semibold text-fg flex-1 truncate">
+                                            {row.name}
+                                        </p>
+                                        <span className="text-[16px] font-bold text-fg num shrink-0 w-10 text-right">
+                                            {row.points}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : loading ? (
+                        <Placeholder lines={6} />
+                    ) : (
+                        <EmptyState message="No results yet this season." />
+                    )}
+                </section>
             </div>
         </div>
     );

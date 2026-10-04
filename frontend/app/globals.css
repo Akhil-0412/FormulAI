@@ -1,139 +1,320 @@
 @import "tailwindcss";
 
+/* ============================================================
+   FormulAI design tokens
+
+   True black ground, one red accent, no glass. Depth comes from
+   flat elevation steps (ink-0 → ink-3) rather than blur and glow,
+   so a card reads as a distinct plane instead of a translucent
+   film over a gradient.
+   ============================================================ */
+
 @theme {
-  --color-f1-navy: #0B132E;
-  --color-f1-navy-light: #141C36;
-  --color-f1-dark: #091024;
-  --color-f1-red: #E80020;
-  --color-f1-teal: #00D2BE;
-  --color-f1-papaya: #FF8700;
-  --color-f1-green: #229971;
-  --color-f1-text: #FFFFFF;
-  --color-f1-muted: #8E96AD;
-  --color-f1-border: rgba(255, 255, 255, 0.1);
+  /* Surfaces — near-black, stepped by elevation, not opacity */
+  --color-ink-0: #000000;   /* page plane behind the app frame */
+  --color-ink-1: #070708;   /* app frame */
+  --color-ink-2: #0e0e10;   /* card */
+  --color-ink-3: #16161a;   /* raised card / chip */
+  --color-ink-4: #1e1e24;   /* hover, active chip */
+
+  /* Ink */
+  --color-fg:        #ffffff;
+  --color-fg-muted:  #9b9ba4;
+  --color-fg-subtle: #5f5f68;
+
+  /* Accent — F1 red. Reserved for emphasis; not a background wash. */
+  --color-accent:      #e80020;
+  --color-accent-hot:  #ff2038;
+  --color-accent-dim:  #7a0616;
+  --color-accent-wash: rgba(232, 0, 32, 0.12);
+
+  /* Live / status. Deliberately few — a status colour must never
+     read as "just another series colour". */
+  --color-live:    #ff2038;
+  --color-good:    #35d07f;
+  --color-warn:    #ffb020;
+  --color-neutral: #6f7480;
+
+  /* Hairlines */
+  --color-line:        rgba(255, 255, 255, 0.07);
+  --color-line-strong: rgba(255, 255, 255, 0.14);
+
+  /* Radii — the reference is generously rounded; keep it consistent */
+  --radius-chip: 12px;
+  --radius-card: 18px;
+  --radius-frame: 28px;
+
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 :root {
-  --background: var(--color-f1-navy);
-  --foreground: var(--color-f1-text);
+  --background: var(--color-ink-0);
+  --foreground: var(--color-fg);
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: var(--color-f1-navy);
-    --foreground: var(--color-f1-text);
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
+  background: var(--color-ink-0);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Sleek Scrollbar */
+/* ── Type ────────────────────────────────────────────────────
+   The reference leans on one grotesque at two extremes: very
+   large tight headings, and small wide-tracked labels. No script
+   or display face — that pairing is what made the old dashboard
+   look like two products stapled together.
+   ──────────────────────────────────────────────────────────── */
+
+.h-display {
+  font-size: clamp(30px, 3.6vw, 46px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+.h-section {
+  font-size: clamp(22px, 2.1vw, 30px);
+  line-height: 1.1;
+  letter-spacing: -0.022em;
+  font-weight: 700;
+}
+
+.h-card {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  font-weight: 650;
+}
+
+.label-xs {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-fg-subtle);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Surfaces ────────────────────────────────────────────── */
+
+.card {
+  background: var(--color-ink-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+.card-raised {
+  background: var(--color-ink-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+/* Hover is a lift in surface, not a translate + shadow bloom.
+   Moving cards on hover is the thing that reads as "template". */
+.card-interactive {
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.card-interactive:hover {
+  background: var(--color-ink-3);
+  border-color: var(--color-line-strong);
+}
+
+/* ── Chips ───────────────────────────────────────────────── */
+
+.chip {
+  background: var(--color-ink-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-chip);
+  color: var(--color-fg-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.chip:hover {
+  background: var(--color-ink-4);
+  color: var(--color-fg);
+}
+
+.chip[data-active="true"] {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent-hot);
+}
+
+/* ── Navigation dock ─────────────────────────────────────────
+   Idle it recedes into the page; pointer contact or keyboard focus
+   brings it forward; scrolling pushes it further back.
+
+   Hover/focus are CSS rather than React state on purpose — `:hover`
+   is driven by the browser's own hit testing, so it can't get out of
+   sync with the pointer the way an onMouseEnter/onMouseLeave pair can
+   (a leave event lost to a re-render leaves the dock stuck lit).
+   React only owns the scroll state, which has no CSS equivalent.
+   ──────────────────────────────────────────────────────────── */
+
+/* Values are written directly rather than routed through custom
+   properties. An unregistered custom property doesn't reliably
+   invalidate a declaration that consumes it via var(), so the opacity
+   silently kept its old computed value while --dock-opacity updated,
+   and backdrop-filter: blur(var(…)) went invalid-at-computed-value-time
+   and fell back to `none`. */
+
+.dock {
+  transform-origin: bottom center;
+  transform: translateX(-50%) translateY(0) scale(1);
+  /* The GlassSurface component handles the background, refraction and borders. */
+  transition:
+    transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* Resting state: a little smaller and tucked slightly above its full
+   position, so it keeps a presence without competing with the page.
+   Hover/focus is applied as a separate rule below so it always wins,
+   regardless of source order. */
+.dock[data-expanded="false"] {
+  transform: translateX(-50%) translateY(-6px) scale(0.82);
+}
+
+.dock:hover,
+.dock:focus-within {
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock,
+  .dock[data-expanded="false"] {
+    transform: translateX(-50%) translateY(0) scale(1);
+    transition: none;
+  }
+}
+
+/* ── Live indicator ──────────────────────────────────────── */
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-live);
+  animation: pulse-live 1.8s ease-in-out infinite;
+}
+
+/* ── Race map ────────────────────────────────────────────────
+   The world map behind the Predictions page preview and its
+   expanded view.
+
+   Region hover is CSS rather than React state on purpose: there
+   are 177 country paths, and re-rendering every one of them on a
+   pointer move to flip a single fill is a stutter you can feel.
+   React only owns the tooltip, which changes at most once per
+   country crossed.
+
+   The ping rings need `transform-box: fill-box` — an SVG element's
+   transform origin is the viewBox origin by default, so a plain
+   scale() animation on a circle sends it flying off the map
+   instead of pulsing in place.
+   ──────────────────────────────────────────────────────────── */
+
+.race-map-region {
+  fill: rgba(255, 255, 255, 0.035);
+  stroke: rgba(255, 255, 255, 0.10);
+  transition: fill 0.18s ease;
+}
+
+.race-map-region:hover {
+  fill: rgba(255, 255, 255, 0.10);
+}
+
+@keyframes race-ping {
+  0%        { transform: scale(0.6); opacity: 0.8; }
+  70%, 100% { transform: scale(2.4); opacity: 0; }
+}
+
+.race-marker-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: race-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.race-marker-ping--delayed {
+  animation-delay: 1.2s;
+}
+
+@keyframes race-marker-glow {
+  0%, 100% { opacity: 0.10; }
+  50%      { opacity: 0.32; }
+}
+
+.race-marker-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: race-marker-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+
+  /* Stopped outright, not sped up: the blanket 0.01ms below would
+     park these mid-keyframe at scale(2.4)/opacity 0, leaving the
+     marker ringed by an invisible-but-oversized halo. */
+  .race-marker-ping { animation: none; opacity: 0.5; }
+  .race-marker-glow { animation: none; opacity: 0.2; }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-f1-navy);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+  background: var(--color-ink-4);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-f1-teal);
+  background: var(--color-fg-subtle);
 }
 
-/* Custom Glassmorphism Utilities */
-.glass-panel {
-  background: rgba(20, 28, 54, 0.4);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-f1-border);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+/* Hide the scrollbar on horizontal filmstrips/chip rows while
+   keeping them scrollable. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.glass-card {
-  background: rgba(20, 28, 54, 0.4);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-f1-border);
-  border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  position: relative;
-  overflow: hidden;
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
-.glass-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
+/* ── Focus ───────────────────────────────────────────────── */
 
-.glass-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-.glass-card:hover::before {
-  opacity: 1;
-}
-
-/* Circulating Gold Glow for active AI tabs */
-@keyframes spin-gradient {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.gold-glowing-tab {
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.75rem;
-  background: rgba(20, 28, 54, 0.4);
-}
-
-.gold-glowing-tab::before {
-  content: "";
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: conic-gradient(transparent, transparent, transparent, #fbbf24);
-  animation: spin-gradient 4s linear infinite;
-  z-index: 0;
-  opacity: 0.7;
-}
-
-.gold-glowing-tab::after {
-  content: "";
-  position: absolute;
-  inset: 1.5px;
-  /* Inner border thickness */
-  background: var(--color-f1-navy);
-  border-radius: 0.70rem;
-  z-index: 0;
-}
-
-.gold-glowing-tab .relative {
-  z-index: 10;
+:where(a, button, [role="button"], input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-accent-hot);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
