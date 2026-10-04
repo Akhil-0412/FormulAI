@@ -116,7 +116,25 @@
 
 ## Model Architecture
 
-### Stage 1: Pre-Race Predictor (`models_v2/ltr_ranker.py`)
+### Stage 1 (v4, production): PodiumPredictor (`models_v2/podium_predictor.py`)
+
+- **Features:** `features/fast_features.py` — leak-free by construction
+  (`merge_asof(..., allow_exact_matches=False)` on "state after race"
+  tables). `ALL_FEATURES` after qualifying, `PREQUALI_FEATURES` before.
+- **Post-qualifying blend:** XGBoost LambdaMART (linear-gain top-10 labels)
+  + LightGBM podium classifier + grid-order anchor.
+- **Pre-qualifying blend:** XGBoost LambdaMART + championship-order anchor.
+- Members are z-scored per race and averaged; the blend score goes through an
+  exact Plackett-Luce layer (`pl_position_probs`) with a temperature fitted
+  on out-of-sample races, giving P(P1), P(P2), P(P3) and P(podium).
+- Members live in `config/training_config.yaml: podium_model`; they were
+  chosen with `scripts/model_lab.py` (lowest 2022–2024 log-loss with podium
+  picks no worse than the baseline) and confirmed on 2025–2026.
+- The API's `get_ensemble_predictions()` uses this model when
+  `models_v2/artifacts/podium_predictor.joblib` exists and returns P(win) as
+  the probability dict, so `monte_carlo_podium` sampling stays consistent.
+
+### Stage 1 (legacy fallback): LTR Ensemble (`models_v2/ltr_ranker.py`)
 
 **Learning-to-Rank Ensemble:**
 

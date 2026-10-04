@@ -27,7 +27,15 @@ Jolpica / Open-Meteo ─▶ SQLite ─▶ v4 features (features/fast_features.py
             Plackett-Luce layer ─▶ P(win), P(P2), P(P3), P(podium) (sums to 3)
 ```
 
-$RESULTS_LINE
+**Walk-forward results, 2022–2026 (107 races, each predicted only from earlier races):**
+
+| After qualifying | Podium picks / 3 | Podium log-loss |
+|---|---|---|
+| v4 model | **2.00** | **0.213** |
+| Grid order baseline | 1.99 | 0.237 |
+| Legacy LTR ensemble | 1.91 | 0.282 |
+
+Podium picks sit at the grid baseline's ceiling for every approach tested; the gain is in calibrated probabilities. Details: `reports/formulai_v4_report.html`, `reports/model_lab/summary.json`.
 
 **Data Sources:** Jolpica API (results, qualifying, sprints, standings, pit stops) • Open-Meteo (race weather) • FastF1 / OpenF1 (live endpoints)
 

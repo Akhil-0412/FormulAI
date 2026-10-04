@@ -2,7 +2,14 @@
 
 This document serves as a persistent, graph-like mapping of the current architecture and state to ensure no deprecated models, variables, or pipelines are left lingering. 
 
-## 1. Core Architectural Truth
+## 0. Current State (v4, October 2026)
+* **Production model:** `models_v2/podium_predictor.py` (`PodiumPredictor`, artifact `models_v2/artifacts/podium_predictor.joblib`) over `features/fast_features.py`. Separate post- and pre-qualifying blends; members in `config/training_config.yaml: podium_model`. The API uses it first and falls back to `_ltr_model`.
+* **Probabilities:** exact Plackett-Luce (`pl_position_probs`). P(podium) sums to 3 per race; the API's `prob_dict` is P(win) (sums to 1).
+* **Evaluation truth:** walk-forward only (`scripts/model_lab.py`, `scripts/rolling_backtest.py`). Single-season averages are noise (±0.2 podium picks); compare models with the lab's paired bootstrap and log-loss. Every approach tested (trees, linear, neural) lands at the grid baseline's ~2.0/3 podium picks after qualifying; the v4 gain is calibration (log-loss 0.213 vs 0.282 legacy).
+* **Status gotcha:** Jolpica 2023+ says `"Lapped"` for classified finishers. Always use `data.db.is_finished_status()`.
+* **Row-order gotcha:** never leave a race's rows in finishing order where a score tie could be broken by position (`build_training_frame` sorts by driver_id).
+
+## 1. Core Architectural Truth (legacy LTR, now the fallback)
 The predictor has successfully transitioned from a 4-Stage Binary Classification Pipeline to a 1-Stage Learning-to-Rank (LTR) + 2 Auxiliary Heads Pipeline.
 
 ### Active Models & Variables
