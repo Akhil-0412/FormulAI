@@ -37,3 +37,9 @@ htmlcov/
 .pytest_cache/
 *.txt
 tmp_*.py
+
+# Retired frontend kept locally only (untracked, ~900 MB with node_modules)
+frontend_legacy/
+
+# Model lab raw per-driver predictions (summary.json / per_race_metrics.csv are kept)
+reports/model_lab/preds_*.parquet

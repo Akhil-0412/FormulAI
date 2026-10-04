@@ -1,6 +1,6 @@
 """Development features — In-season team and driver progression."""
 
-from data.db import query_df
+from data.db import query_df, race_seq, race_seq_sql
 
 
 def compute_development_features(driver_id: str, constructor_id: str, race_id: str) -> dict:
@@ -18,11 +18,11 @@ def compute_development_features(driver_id: str, constructor_id: str, race_id: s
         (constructor_id, r1_id),
     )
     recent_result = query_df(
-        """SELECT AVG(position) as avg_pos FROM results
-           WHERE constructor_id = ? AND race_id < ? AND position IS NOT NULL
+        f"""SELECT AVG(position) as avg_pos FROM results
+           WHERE constructor_id = ? AND {race_seq_sql()} < ? AND position IS NOT NULL
            AND race_id LIKE ?
-           ORDER BY race_id DESC LIMIT 10""",
-        (constructor_id, race_id, f"{year}_%"),
+           ORDER BY {race_seq_sql()} DESC LIMIT 10""",
+        (constructor_id, race_seq(race_id), f"{year}_%"),
     )
 
     r1_avg = r1_result.iloc[0]["avg_pos"] if not r1_result.empty and r1_result.iloc[0]["avg_pos"] else None
@@ -35,15 +35,15 @@ def compute_development_features(driver_id: str, constructor_id: str, race_id: s
 
     # 2. Team Rolling Pace Rank (constructor rank by avg points over last 3 races)
     constructor_points = query_df(
-        """SELECT constructor_id, AVG(points) as avg_pts
+        f"""SELECT constructor_id, AVG(points) as avg_pts
            FROM results
-           WHERE race_id < ? AND race_id IN (
-               SELECT race_id FROM races WHERE race_id < ?
+           WHERE {race_seq_sql()} < ? AND race_id IN (
+               SELECT race_id FROM races WHERE {race_seq_sql()} < ?
                ORDER BY year DESC, round DESC LIMIT 3
            )
            GROUP BY constructor_id
            ORDER BY avg_pts DESC""",
-        (race_id, race_id),
+        (race_seq(race_id), race_seq(race_id)),
     )
     if not constructor_points.empty:
         rank_list = constructor_points["constructor_id"].tolist()
@@ -61,10 +61,10 @@ def compute_development_features(driver_id: str, constructor_id: str, race_id: s
         (driver_id, r1_id),
     )
     d_recent = query_df(
-        """SELECT AVG(position) as avg_pos FROM results
-           WHERE driver_id = ? AND race_id < ? AND position IS NOT NULL
+        f"""SELECT AVG(position) as avg_pos FROM results
+           WHERE driver_id = ? AND {race_seq_sql()} < ? AND position IS NOT NULL
            AND race_id LIKE ?""",
-        (driver_id, race_id, f"{year}_%"),
+        (driver_id, race_seq(race_id), f"{year}_%"),
     )
 
     d_r1_pos = d_r1.iloc[0]["position"] if not d_r1.empty else None

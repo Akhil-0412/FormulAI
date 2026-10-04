@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from data.db import get_connection, query_df
+from data.db import get_connection, is_finished_status, query_df
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def build_pre_race_features(year: int, round_number: int) -> pd.DataFrame:
 
             pos = res["position"]
             status = res.get("status", "")
-            is_finished = status == "Finished" or (status and str(status).startswith("+"))
+            is_finished = is_finished_status(status)
 
             roster.append({
                 "driver_id": did,
@@ -121,7 +121,7 @@ def build_pre_race_features(year: int, round_number: int) -> pd.DataFrame:
                 r = res_row.iloc[0]
                 pos = r["position"]
                 status = r.get("status", "")
-                is_finished = status == "Finished" or (status and str(status).startswith("+"))
+                is_finished = is_finished_status(status)
                 roster.append({
                     "driver_id": did,
                     "constructor_id": r["constructor_id"],
@@ -261,13 +261,13 @@ def _build_driver_features(
     max_round: int,
 ) -> dict:
     """Build all pre-race features for a single driver using the domain modules."""
-    circuit_info = CIRCUIT_META.get(circuit_id, {})
-    circuit_info["id"] = circuit_id  # Ensure id is available
+    # Copy: the old in-place write mutated the shared module-level metadata.
+    circuit_info = {**CIRCUIT_META.get(circuit_id, {}), "id": circuit_id}
 
     features: dict = {}
 
     features.update(compute_qualifying_features(driver_id, qualifying, race_id))
-    features.update(compute_tyre_features(driver_id, circuit_id, circuit_info))
+    features.update(compute_tyre_features(driver_id, circuit_id, circuit_info, race_id))
     features.update(compute_strategy_features(driver_id, circuit_info))
     features.update(compute_reliability_features(constructor_id, driver_id, race_id))
     features.update(compute_development_features(driver_id, constructor_id, race_id))
@@ -276,7 +276,7 @@ def _build_driver_features(
     features.update(weather_feats)
 
     rain_prob = weather_feats.get("rain_prob", 0.0)
-    features.update(compute_safety_car_features(circuit_id, circuit_info, rain_prob))
+    features.update(compute_safety_car_features(circuit_id, circuit_info, rain_prob, race_id))
 
     features.update(compute_form_features(driver_id, circuit_id, race_id, constructor_id))
     features.update(compute_circuit_features(driver_id, constructor_id, circuit_info, standings, race_id))

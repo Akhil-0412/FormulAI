@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     enable_drqn_agent: bool = False
 
     # ── Training defaults ───────────────────────────────────────────────
-    train_start_year: int = 2018
+    train_start_year: int = 2022  # ground-effect regulation era; see training_config.yaml
     train_end_year: int = 2022
     val_year: int = 2023
     test_year: int = 2024

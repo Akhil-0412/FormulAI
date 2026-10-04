@@ -169,6 +169,9 @@ class NextRacePrediction(BaseModel):
     name: str
     date: str
     prediction: list[str]
+    probabilities: dict[str, float] = {}       # P(podium), sums to 3
+    win_probabilities: dict[str, float] = {}   # P(win), sums to 1
+    regime: str | None = None                  # "pre-qualifying" / "post-qualifying"
 
 class EvaluationHistoryItem(BaseModel):
     race: str
@@ -182,6 +185,7 @@ class EvaluationSummaryResponse(BaseModel):
     average_accuracy: float
     last_updated: str
     next_race: NextRacePrediction | None = None
+    avg_correct_out_of_3: float | None = None
     history: list[EvaluationHistoryItem]
 
 

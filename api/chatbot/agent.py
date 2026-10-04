@@ -32,7 +32,7 @@ from typing import Annotated, Dict, Any, List, TypedDict, Optional
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, START, END
@@ -102,10 +102,15 @@ tools = [
     get_telemetry_comparison,
 ]
 
-api_key = os.environ.get("GROQ_API_KEY", "").strip()
-os.environ["GROQ_API_KEY"] = api_key
+api_key = os.environ.get("TOKEN_ROUTER_KEY", "").strip()
+os.environ["OPENAI_API_KEY"] = api_key
 
-llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
+llm = ChatOpenAI(
+    model="qwen/qwen3.8-max",
+    temperature=0,
+    api_key=api_key,
+    base_url="https://api.tokenrouter.com/v1"
+)
 llm_with_tools = llm.bind_tools(tools)
 structured_llm = llm.bind(response_format={"type": "json_object"})
 

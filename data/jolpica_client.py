@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -13,8 +14,12 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Jolpica rate limit: 4 requests/second
+# Jolpica rate limit: 4 requests/second. Pagination means a single season now
+# issues many more calls than before, so this client paces its own requests
+# rather than relying on retry/backoff alone — sustained bursts trip a
+# longer server-side cooldown that per-request retries can't out-wait.
 _CLIENT_TIMEOUT = 15.0
+_MIN_REQUEST_INTERVAL = 0.3  # ~3.3 req/s, under the stated 4/s limit
 
 
 @dataclass
@@ -23,6 +28,7 @@ class JolpicaClient:
 
     base_url: str = field(default_factory=lambda: settings.jolpica_base_url)
     _client: httpx.Client | None = field(default=None, init=False, repr=False)
+    _last_request_time: float = field(default=0.0, init=False, repr=False)
 
     def _get_client(self) -> httpx.Client:
         if self._client is None or self._client.is_closed:
@@ -39,13 +45,54 @@ class JolpicaClient:
 
     # ── Core request ────────────────────────────────────────────────────
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
+    def _throttle(self) -> None:
+        elapsed = time.monotonic() - self._last_request_time
+        if elapsed < _MIN_REQUEST_INTERVAL:
+            time.sleep(_MIN_REQUEST_INTERVAL - elapsed)
+        self._last_request_time = time.monotonic()
+
+    @retry(stop=stop_after_attempt(6), wait=wait_exponential(min=1, max=30))
     def _get(self, path: str, params: dict[str, Any] | None = None) -> dict:
         """Make a GET request and return the MRData dict."""
+        self._throttle()
         resp = self._get_client().get(path, params=params)
         resp.raise_for_status()
         data = resp.json()
         return data.get("MRData", data)
+
+    def _get_all_races(self, path: str, page_size: int = 100) -> list[dict]:
+        """Fetch every page of a season-level Races endpoint and merge them.
+
+        Jolpica silently caps `limit` at 100 server-side regardless of what's
+        requested, and reports the real row count via `total`. Season-level
+        results/qualifying calls return far more than 100 rows (~20/race), so
+        without paging through `offset` only the first ~5 races ever come
+        back. Result rows for a single race can also land on either side of a
+        page boundary, so races are merged by round number across pages.
+        """
+        merged: dict[str, dict] = {}
+        order: list[str] = []
+        offset = 0
+        while True:
+            data = self._get(path, params={"limit": str(page_size), "offset": str(offset)})
+            races = data.get("RaceTable", {}).get("Races", [])
+            for race in races:
+                round_num = race.get("round")
+                if round_num not in merged:
+                    merged[round_num] = race
+                    order.append(round_num)
+                else:
+                    for key in ("Results", "QualifyingResults", "SprintResults"):
+                        if key in race:
+                            merged[round_num].setdefault(key, [])
+                            merged[round_num][key].extend(race[key])
+
+            total = int(data.get("total", len(races)) or 0)
+            offset += page_size
+            if offset >= total or not races:
+                break
+
+        return [merged[r] for r in order]
 
     # ── Race results ────────────────────────────────────────────────────
 
@@ -54,10 +101,10 @@ class JolpicaClient:
 
         Returns a list of race result dicts, each containing RaceTable data.
         """
-        path = f"/{year}/results.json" if round_number is None else f"/{year}/{round_number}/results.json"
-        data = self._get(path, params={"limit": "1000"})
-        races = data.get("RaceTable", {}).get("Races", [])
-        return races
+        if round_number is None:
+            return self._get_all_races(f"/{year}/results.json")
+        data = self._get(f"/{year}/{round_number}/results.json", params={"limit": "1000"})
+        return data.get("RaceTable", {}).get("Races", [])
 
     def get_all_season_results(self, year: int) -> list[dict]:
         """Get results for every race in a season."""
@@ -67,8 +114,18 @@ class JolpicaClient:
 
     def get_qualifying(self, year: int, round_number: int | None = None) -> list[dict]:
         """Get qualifying results."""
-        path = f"/{year}/qualifying.json" if round_number is None else f"/{year}/{round_number}/qualifying.json"
-        data = self._get(path, params={"limit": "1000"})
+        if round_number is None:
+            return self._get_all_races(f"/{year}/qualifying.json")
+        data = self._get(f"/{year}/{round_number}/qualifying.json", params={"limit": "1000"})
+        return data.get("RaceTable", {}).get("Races", [])
+
+    # ── Sprints ─────────────────────────────────────────────────────────
+
+    def get_sprint_results(self, year: int, round_number: int | None = None) -> list[dict]:
+        """Sprint race results (Races[].SprintResults); empty for non-sprint rounds."""
+        if round_number is None:
+            return self._get_all_races(f"/{year}/sprint.json")
+        data = self._get(f"/{year}/{round_number}/sprint.json", params={"limit": "100"})
         return data.get("RaceTable", {}).get("Races", [])
 
     # ── Standings ───────────────────────────────────────────────────────

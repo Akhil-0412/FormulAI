@@ -20,7 +20,7 @@ data:
   feature_cache_dir: data/feature_cache
   test_year: 2026
   train_end_year: 2024
-  train_start_year: 2014
+  train_start_year: 2022
   val_year: 2025
 elo:
   base_rating: 1500
@@ -69,18 +69,40 @@ ltr:
     tree_method: hist
 models:
   ltr_ranker:
-    best_params:
-      blend_weight_xgb: 0.44200774965210876
-      colsample_bytree: 0.6932769748225209
-      lambdarank_num_pair_per_sample: 8
-      learning_rate: 0.054854639924186877
-      max_depth: 7
-      min_child_weight: 9
-      n_estimators: 179
-      subsample: 0.8958631605452677
+    best_params_lgb:
+      colsample_bytree: 0.7067939865838003
+      learning_rate: 0.022798856288136143
+      max_depth: 6
+      min_child_samples: 27
+      n_estimators: 69
+      num_leaves: 50
+      reg_alpha: 4.91655924709587
+      reg_lambda: 0.003706445086166402
+      subsample: 0.7898981409719577
+    best_params_xgb:
+      colsample_bytree: 0.8970378479377928
+      lambdarank_num_pair_per_sample: 1
+      learning_rate: 0.17546238917458828
+      max_depth: 4
+      min_child_weight: 4
+      n_estimators: 238
+      reg_alpha: 0.6853525040841771
+      reg_lambda: 0.06524572071374668
+      subsample: 0.7545411580325642
+    blend_weight_xgb: 0.27764216408014086
 optimization:
   enabled: true
   engine: optuna
   n_trials: 30
   timeout_seconds: 600
 random_seed: 42
+podium_model:
+  # v4 production model (models_v2/podium_predictor.py). Members were chosen
+  # by the walk-forward lab (scripts/model_lab.py, reports/model_lab/):
+  # lowest 2022-2024 podium log-loss with podium hits no worse than the
+  # regime's baseline, confirmed on held-out 2025-2026. Training from 2014
+  # beat 2018 and 2022 starts on both validation and held-out seasons.
+  train_start_year: 2014
+  members:
+    post: [xgb_rank_top10, lgb_podium_clf, base_grid]
+    pre: [xgb_rank_top10, base_season_points]

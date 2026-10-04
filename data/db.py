@@ -14,6 +14,46 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+# ── Chronological ordering of race_id ───────────────────────────────────
+# race_id is "{year}_{round}" TEXT, so comparing or ordering it as a string
+# is wrong once a season passes round 9: "2014_10" sorts before "2014_2".
+# That silently leaked later-season races into "past races only" filters and
+# made "last N races" pick the wrong N. Compare on this numeric key instead.
+
+
+def race_seq_sql(col: str = "race_id") -> str:
+    """SQL expression turning a race_id column into a sortable integer.
+
+    "2014_1" -> 201401, "2014_10" -> 201410.
+    """
+    return (
+        f"(CAST(substr({col}, 1, 4) AS INTEGER) * 100"
+        f" + CAST(substr({col}, 6) AS INTEGER))"
+    )
+
+
+def race_seq(race_id: str) -> int:
+    """Python-side equivalent of `race_seq_sql`, for binding as a parameter."""
+    year, _, rnd = race_id.partition("_")
+    return int(year) * 100 + int(rnd)
+
+
+# ── Finish status ───────────────────────────────────────────────────────
+# Jolpica reports a classified, running-at-the-flag car as "Finished" or
+# "+N Lap(s)" up to 2022, but its re-processed 2023+ data says "Lapped"
+# instead. Testing only for "Finished"/"+" counted every lapped 2023+ car as
+# a DNF — ~30% of all "DNFs" — which poisoned the DNF head's labels and every
+# reliability/form feature built on status.
+
+
+def is_finished_status(status: Any) -> bool:
+    """True when the car took the chequered flag (on the lead lap or lapped)."""
+    if status is None or (isinstance(status, float) and status != status):
+        return False
+    s = str(status)
+    return s in ("Finished", "Lapped") or s.startswith("+")
+
+
 # ── Schema DDL ──────────────────────────────────────────────────────────
 
 _SCHEMA_SQL = """
@@ -188,6 +228,18 @@ CREATE TABLE IF NOT EXISTS fp2_long_runs (
     PRIMARY KEY (race_id, driver_id, compound)
 );
 
+CREATE TABLE IF NOT EXISTS sprint_results (
+    race_id         TEXT NOT NULL,      -- the Grand Prix weekend's race_id
+    driver_id       TEXT NOT NULL,
+    constructor_id  TEXT,
+    grid            INTEGER,
+    position        INTEGER,
+    status          TEXT,
+    points          REAL,
+    PRIMARY KEY (race_id, driver_id),
+    FOREIGN KEY (race_id) REFERENCES races(race_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_tyre_stints_race ON tyre_stints(race_id, driver_id);
 CREATE INDEX IF NOT EXISTS idx_lap_data_race ON lap_data(race_id, driver_id);
 """
@@ -303,6 +355,15 @@ def upsert_standings(conn: sqlite3.Connection, standing: dict[str, Any]) -> None
     )
 
 
+def upsert_sprint_result(conn: sqlite3.Connection, sprint: dict[str, Any]) -> None:
+    conn.execute(
+        """INSERT OR REPLACE INTO sprint_results
+           (race_id, driver_id, constructor_id, grid, position, status, points)
+           VALUES (:race_id, :driver_id, :constructor_id, :grid, :position, :status, :points)""",
+        sprint,
+    )
+
+
 def upsert_practice(conn: sqlite3.Connection, practice: dict[str, Any]) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO practice_sessions
@@ -381,14 +442,14 @@ def query_df(sql: str, params: tuple = ()) -> pd.DataFrame:
 def get_driver_recent_results(driver_id: str, before_race_id: str, n: int = 5) -> pd.DataFrame:
     """Get a driver's last N race results before a given race."""
     return query_df(
-        """SELECT r.race_id, r.year, r.round, res.position, res.grid, res.is_podium, res.status
+        f"""SELECT r.race_id, r.year, r.round, res.position, res.grid, res.is_podium, res.status
            FROM results res
            JOIN races r ON res.race_id = r.race_id
            WHERE res.driver_id = ?
-             AND r.race_id < ?
+             AND {race_seq_sql("r.race_id")} < ?
            ORDER BY r.year DESC, r.round DESC
            LIMIT ?""",
-        (driver_id, before_race_id, n),
+        (driver_id, race_seq(before_race_id), n),
     )
 
 
@@ -417,7 +478,7 @@ def get_constructor_dnf_rate(constructor_id: str, last_n_races: int = 20) -> flo
     )
     if df.empty:
         return 0.0
-    finished = df["status"].apply(lambda s: s == "Finished" or (s and s.startswith("+"))).sum()
+    finished = df["status"].apply(is_finished_status).sum()
     return 1.0 - (finished / len(df))
 
 
@@ -444,9 +505,9 @@ def get_lap_sequence(race_id: str, driver_id: str) -> pd.DataFrame:
 def get_constructor_reliability_rolling(constructor_id: str, before_race_id: str) -> pd.DataFrame:
     """Get rolling constructor reliability up to a certain race."""
     return query_df(
-        """SELECT cr.* FROM constructor_reliability cr
+        f"""SELECT cr.* FROM constructor_reliability cr
            JOIN races r ON cr.race_id = r.race_id
-           WHERE cr.constructor_id = ? AND r.race_id < ?
+           WHERE cr.constructor_id = ? AND {race_seq_sql("r.race_id")} < ?
            ORDER BY r.year DESC, r.round DESC LIMIT 1""",
-        (constructor_id, before_race_id),
+        (constructor_id, race_seq(before_race_id)),
     )

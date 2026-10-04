@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from data.db import query_df
+from data.db import is_finished_status, query_df, race_seq, race_seq_sql
 
 
 def compute_form_features(driver_id: str, circuit_id: str, race_id: str, constructor_id: str = None) -> dict:
@@ -11,17 +11,17 @@ def compute_form_features(driver_id: str, circuit_id: str, race_id: str, constru
 
     # 1. Standard Form (Last 5 races)
     recent = query_df(
-        """SELECT position, is_podium, status, grid, points FROM results
-           WHERE driver_id = ? AND race_id < ? AND position IS NOT NULL
-           ORDER BY race_id DESC LIMIT 5""",
-        (driver_id, race_id),
+        f"""SELECT position, is_podium, status, grid, points FROM results
+           WHERE driver_id = ? AND {race_seq_sql()} < ? AND position IS NOT NULL
+           ORDER BY {race_seq_sql()} DESC LIMIT 5""",
+        (driver_id, race_seq(race_id)),
     )
     if not recent.empty:
         features["driver_last3_avg_pos"] = recent.head(3)["position"].mean()
         features["last3_podium_rate"] = recent.head(3)["is_podium"].mean()
 
         # Positions Gained Rolling (actual race data)
-        completed = recent[recent["status"].isin(["Finished"]) | recent["status"].str.startswith("+")]
+        completed = recent[recent["status"].apply(is_finished_status)]
         if not completed.empty and completed["grid"].notna().any():
             gained = completed["grid"] - completed["position"]  # Positive = gained
             features["driver_positions_gained_rolling"] = gained.mean()
@@ -42,11 +42,11 @@ def compute_form_features(driver_id: str, circuit_id: str, race_id: str, constru
 
     # 2. Circuit History
     circuit_hist = query_df(
-        """SELECT position, is_podium FROM results
+        f"""SELECT position, is_podium FROM results
            JOIN races ON results.race_id = races.race_id
            WHERE results.driver_id = ? AND races.circuit_id = ?
-             AND results.race_id < ? AND results.position IS NOT NULL""",
-        (driver_id, circuit_id, race_id),
+             AND {race_seq_sql("results.race_id")} < ? AND results.position IS NOT NULL""",
+        (driver_id, circuit_id, race_seq(race_id)),
     )
     if not circuit_hist.empty:
         features["circuit_history_podium_rate"] = circuit_hist["is_podium"].mean()
@@ -61,11 +61,11 @@ def compute_form_features(driver_id: str, circuit_id: str, race_id: str, constru
 
     # 3. Wet Race Performance (from actual wet races in DB)
     wet_results = query_df(
-        """SELECT res.position FROM results res
+        f"""SELECT res.position FROM results res
            JOIN weather w ON res.race_id = w.race_id
-           WHERE res.driver_id = ? AND res.race_id < ?
+           WHERE res.driver_id = ? AND {race_seq_sql("res.race_id")} < ?
              AND w.precipitation_prob > 0.5 AND res.position IS NOT NULL""",
-        (driver_id, race_id),
+        (driver_id, race_seq(race_id)),
     )
     if not wet_results.empty:
         features["wet_race_avg_finish"] = wet_results["position"].mean()
@@ -77,7 +77,7 @@ def compute_form_features(driver_id: str, circuit_id: str, race_id: str, constru
     features["teammate_finish_gap_rolling"] = 0.0
 
     if constructor_id:
-        teammate_gap_query = """
+        teammate_gap_query = f"""
             SELECT
                 r1.position AS driver_pos,
                 r2.position AS teammate_pos,
@@ -89,16 +89,16 @@ def compute_form_features(driver_id: str, circuit_id: str, race_id: str, constru
             JOIN results r2 ON r1.race_id = r2.race_id AND r1.constructor_id = r2.constructor_id AND r1.driver_id != r2.driver_id
             LEFT JOIN qualifying q1 ON r1.race_id = q1.race_id AND r1.driver_id = q1.driver_id
             LEFT JOIN qualifying q2 ON r2.race_id = q2.race_id AND r2.driver_id = q2.driver_id
-            WHERE r1.driver_id = ? AND r1.race_id < ?
-            ORDER BY r1.race_id DESC LIMIT 5
+            WHERE r1.driver_id = ? AND {race_seq_sql("r1.race_id")} < ?
+            ORDER BY {race_seq_sql("r1.race_id")} DESC LIMIT 5
         """
-        gaps = query_df(teammate_gap_query, (driver_id, race_id))
+        gaps = query_df(teammate_gap_query, (driver_id, race_seq(race_id)))
 
         if not gaps.empty:
             # Calculate Finish Gap (Teammate - Driver, so positive means Driver was better)
             finished_both = gaps[
-                (gaps["driver_status"].isin(["Finished"]) | gaps["driver_status"].str.startswith("+")) &
-                (gaps["teammate_status"].isin(["Finished"]) | gaps["teammate_status"].str.startswith("+"))
+                gaps["driver_status"].apply(is_finished_status)
+                & gaps["teammate_status"].apply(is_finished_status)
             ]
             if not finished_both.empty:
                 features["teammate_finish_gap_rolling"] = (finished_both["teammate_pos"] - finished_both["driver_pos"]).mean()

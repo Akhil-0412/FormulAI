@@ -30,28 +30,50 @@ jobs:
       - name: Install Dependencies
         run: uv sync
 
-      - name: Cache Database and Features
-        uses: actions/cache@v3
+      # The DB is the expensive part (a full 2014→now ingest is ~1,500 rate-
+      # limited API calls), so it's cached and topped up incrementally.
+      # "v2" invalidates caches written before the Jolpica pagination fix,
+      # which hold only ~5 races per season — incremental ingest would
+      # otherwise treat those truncated seasons as complete.
+      # Model artifacts are NOT cached: a restored cache would overwrite the
+      # checked-out models, and the pipeline retrains every run anyway.
+      - name: Cache Database
+        uses: actions/cache@v4
         with:
           path: |
             data/db/
             data/cache/
-            data/feature_cache/
-            models_v2/artifacts/
-          key: ${{ runner.os }}-f1-data-${{ hashFiles('scripts/ingest_historical.py') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-f1-data-v2-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-f1-data-
+            ${{ runner.os }}-f1-data-v2-
 
       - name: Ingest Latest Data
-        run: uv run python scripts/ingest_historical.py --start-year 2014 --latest
+        run: uv run python scripts/ingest_historical.py --start-year 2014 --latest --incremental
+
+      - name: Ingest Race Weather
+        run: uv run python scripts/ingest_weather.py --start-year 2014 --end-year "$(date +%Y)"
 
       - name: Run Automated Pipeline
         run: uv run python scripts/automated_pipeline.py
+
+      # Guards against shipping a model that scores worse than simply picking
+      # the three fastest qualifiers, on the current season's out-of-sample
+      # (walk-forward) picks. Warn-only: early in a season there are too few
+      # races for a hard gate not to flap on noise.
+      - name: Check Model Beats Qualifying Baseline
+        run: uv run python scripts/check_baseline.py --warn-only
 
       - name: Commit Updated Predictions
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add frontend/public/data/latest_prediction.json data/rolling_backtest_*.json
-          git commit -m "Auto-update F1 predictions & backtest data [skip ci]" || echo "No changes to commit"
-          git push
+          git add frontend/public/data/latest_prediction.json \
+                  data/rolling_backtest_*.json \
+                  frontend/public/data/rolling_backtest_*.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update F1 predictions & backtest data [skip ci]"
+            git pull --rebase
+            git push
+          fi

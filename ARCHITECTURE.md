@@ -83,9 +83,12 @@
 
 ### Current Data Coverage
 
-- **44 races** across 9 seasons (2018–2026), ~5 races per season (partial)
-- **866 result entries**, **879 qualifying entries**, **1501 pit stops**
-- **Class balance**: 130 podiums (15%) / 736 non-podiums (85%)
+- **267 races** across 13 seasons (2014 → 2026 R15), complete seasons
+- **5,435 result entries**, **5,030 qualifying entries**, **9,041 pit stops**, weather for 245 races
+- **Class balance**: 801 podiums (15%) / 4,634 non-podiums (85%)
+- Finish status: Jolpica's 2023+ data reports lapped finishers as `"Lapped"`
+  (earlier seasons: `"+N Lap(s)"`). Use `data.db.is_finished_status()` —
+  never compare against `"Finished"` alone, which counts lapped cars as DNFs.
 
 ## Feature Engineering
 
@@ -187,7 +190,22 @@ Race-level metrics:
 
 ### Rolling Backtest (`scripts/rolling_backtest.py`)
 
-Online learning: after predicting each race, the race is added to training data and the model is retrained. Produces `data/rolling_backtest_{year}.json` for dashboard consumption.
+Walk-forward: each completed race of the season is predicted by a v4
+`PodiumPredictor` refit on all races strictly before it, using post-qualifying
+information (the Saturday-night prediction). The probability temperature is
+calibrated on pre-season races only. It then forecasts the next race without
+results (`data/upcoming.py`: post-qualifying if Jolpica has the session,
+pre-qualifying otherwise) and, with `--save-model`, saves the all-data model
+as the production artifact. Writes `data/rolling_backtest_{year}.json` and
+`frontend/public/data/rolling_backtest_{year}.json`.
+
+### Model Lab (`scripts/model_lab.py`)
+
+Walk-forward comparison of every candidate (baselines, the production LTR on
+legacy and v4 features, LambdaMART variants, a podium classifier, a
+Plackett-Luce linear model, a ListMLE neural ranker, and blends) on 2021–2026,
+for both the post- and pre-qualifying regimes. Models are selected on
+2022–2024 and confirmed on 2025–2026. Output: `reports/model_lab/summary.json`.
 
 ## API Layer (`api/main.py`)
 

@@ -47,6 +47,7 @@ def enforce_podium_constraints(
     podium_probs: dict[int | str, float],
     position_preds: dict[int | str, float] | None = None,
     confidence_threshold: float = 0.05,
+    grid_positions: dict[int | str, float] | None = None,
 ) -> PodiumResult:
     """Enforce exactly 3 podium finishers and rank P1/P2/P3.
 
@@ -56,6 +57,21 @@ def enforce_podium_constraints(
        mutual exclusivity across the grid.
     2. Sort drivers by this coherent ranking score.
     3. Select top 3 as P1/P2/P3.
+    4. If `grid_positions` is supplied, order those three by qualifying
+       instead of by model score — see below.
+
+    Ordering note
+    -------------
+    Measured over the 2024 and 2025 seasons (48 races), the model selects a
+    competitive *set* of three drivers but orders them poorly: 25.0% of
+    positions exactly right, against 38.2% for simply reading the grid
+    (paired t-test p=0.008 vs qualifying order). Re-ordering the model's own
+    three picks by grid position raises exact-slot accuracy to 34.8%
+    (+0.34 slots/race, p=0.017) without changing which drivers are selected.
+
+    The cause is weak score separation: raw ranking scores span ~1.0 across a
+    20-car field, so ordering *within* the leading group is close to
+    arbitrary. Until that improves, qualifying is the better sort key.
     """
     if not podium_probs:
         raise ValueError("No driver probabilities provided")
@@ -82,10 +98,33 @@ def enforce_podium_constraints(
     top3 = sorted_drivers[:3]
     rest = sorted_drivers[3:] if len(sorted_drivers) > 3 else []
 
-    # Confidence margin: gap in softmax probability between P3 and P4
+    # Confidence margin: gap in softmax probability between P3 and P4.
+    # Computed from the model's own scores BEFORE any re-ordering, since it
+    # measures how clearly the model separated P3 from P4 — a property of the
+    # selection, not of the display order.
     p3_score = top3[2][1] if len(top3) >= 3 else 0.0
     p4_score = rest[0][1] if rest else 0.0
     margin = p3_score - p4_score
+
+    # Order the selected three by qualifying, which is measurably the better
+    # sort key (see docstring). Selection is untouched — only the P1/P2/P3
+    # assignment within the chosen set changes.
+    if grid_positions and len(top3) == 3:
+        known = [d for d, _ in top3 if grid_positions.get(d) is not None]
+        if len(known) == 3:
+            score_lookup = dict(top3)
+            reordered = sorted(top3, key=lambda kv: grid_positions[kv[0]])
+            if [d for d, _ in reordered] != [d for d, _ in top3]:
+                logger.debug(
+                    "Re-ordered podium by grid: %s -> %s",
+                    [d for d, _ in top3], [d for d, _ in reordered],
+                )
+            top3 = [(d, score_lookup[d]) for d, _ in reordered]
+        else:
+            logger.debug(
+                "Grid positions missing for some selected drivers; "
+                "keeping model order."
+            )
 
     # Build predictions with reasoning
     podium = []

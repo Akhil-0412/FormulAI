@@ -1,77 +1,70 @@
-import asyncio
+"""Automated pipeline — backtest the season, retrain, forecast the next race.
+
+Run after ingestion (see .github/workflows/f1_pipeline.yml):
+
+1. `rolling_backtest.py --test-year <now> --save-model` re-scores every
+   completed round walk-forward, refits the production model on all data,
+   saves it, and forecasts the next race without results.
+2. The forecast is also written to frontend/public/data/latest_prediction.json.
+
+The previous version predicted `MAX(round)` from the races table — the last
+race that had already been run, not the next one.
+"""
+
 import json
 import logging
-import sys
 import subprocess
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from data.db import query_df, get_connection
-from fastapi import FastAPI
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
 
-async def main():
-    logger.info("Starting Automated F1 Prediction Pipeline...")
 
-    # 1. Ingest Latest Data (Results, Schedules, etc.)
-    # Depending on how ingest_data is structured, we run it. 
-    # For now, we assume data/ingest.py or similar is the entry point, but 
-    # rolling_backtest.py fetches forward schedules anyway. Let's run rolling_backtest.py
-    
-    # Get the current year to backtest (usually the current calendar year)
-    from datetime import datetime
-    current_year = datetime.now().year
-    
-    logger.info(f"Running rolling backtest for {current_year} to update online learning weights...")
+def main() -> int:
+    year = datetime.now(timezone.utc).year
+    logger.info("Backtesting %d, retraining and forecasting the next race...", year)
     try:
         subprocess.run(
-            [sys.executable, "scripts/rolling_backtest.py", "--test-year", str(current_year), "--no-optimize"],
-            check=True
+            [sys.executable, str(ROOT / "scripts" / "rolling_backtest.py"),
+             "--test-year", str(year), "--save-model"],
+            check=True,
         )
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Rolling backtest failed: {e}")
-        sys.exit(1)
+    except subprocess.CalledProcessError as exc:
+        logger.error("Rolling backtest failed: %s", exc)
+        return 1
 
-    # 2. Determine Next Race
-    # The backtest will have inserted the next race into the `races` table temporarily, or we can fetch the latest race.
-    races_df = query_df("SELECT year, round FROM races WHERE year = ? ORDER BY round DESC LIMIT 1", (current_year,))
-    
-    if races_df.empty:
-        logger.error(f"No races found for {current_year}.")
-        sys.exit(1)
+    entries = json.loads((ROOT / "data" / f"rolling_backtest_{year}.json").read_text())
+    forecast = next((e for e in entries if e.get("is_future")), None)
+    if forecast is None:
+        logger.info("No upcoming race in %d: nothing to forecast.", year)
+        return 0
 
-    next_round = int(races_df.iloc[0]["round"])
-    logger.info(f"Generating full-race prediction payload for {current_year} R{next_round}...")
+    scored = [e for e in entries if e.get("correct", -1) >= 0]
+    payload = {
+        "season": year,
+        "data_through": forecast.get("data_through"),
+        "model_version": "4.0.0",
+        "race": {k: forecast.get(k) for k in ("round", "race_name", "grand_prix", "date")},
+        "regime": forecast.get("regime"),
+        "podium": forecast.get("predicted", []),
+        "podium_probabilities": forecast.get("probabilities", {}),
+        "win_probabilities": forecast.get("win_probabilities", {}),
+        "season_backtest": {
+            "races": len(scored),
+            "avg_correct_out_of_3": round(sum(e["correct"] for e in scored) / len(scored), 3) if scored else None,
+        },
+    }
+    out = ROOT / "frontend" / "public" / "data" / "latest_prediction.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2))
+    logger.info("Wrote %s (%s, %s)", out, forecast.get("race_name"), forecast.get("regime"))
+    return 0
 
-    # 3. Generate FullRaceResponse using API logic
-    from api.main import lifespan, predict_full_race
-    app = FastAPI()
-    
-    async with lifespan(app):
-        try:
-            # Generate the prediction
-            full_race_response = predict_full_race(current_year, next_round, n_simulations=5000)
-            
-            # Serialize to JSON
-            out_dir = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data"
-            out_dir.mkdir(parents=True, exist_ok=True)
-            out_file = out_dir / "latest_prediction.json"
-            
-            with open(out_file, "w") as f:
-                # model_dump_json handles datetime and other types automatically
-                f.write(full_race_response.model_dump_json(indent=2))
-                
-            logger.info(f"Successfully generated static prediction payload at {out_file}")
-            
-        except Exception as e:
-            logger.error(f"Failed to generate full race prediction: {e}")
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(main())

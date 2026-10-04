@@ -17,7 +17,7 @@ from collections import defaultdict
 
 import pandas as pd
 
-from data.db import query_df
+from data.db import query_df, race_seq, race_seq_sql
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ SURFACE_FAMILIES = {
     "jeddah": "street", "miami": "street", "vegas": "street",
     "albert_park": "street", "gilles_villeneuve": "street",
     "montreal": "street", "singapore": "street", "las_vegas": "street",
+    "madring": "street",
 
     "monza": "high_speed", "spa": "high_speed", "silverstone": "high_speed",
     "suzuka": "high_speed", "spielberg": "high_speed", "interlagos": "high_speed",
@@ -42,7 +43,7 @@ SURFACE_FAMILIES = {
     "bahrain": "permanent", "barcelona": "permanent", "hungaroring": "permanent",
     "zandvoort": "permanent", "cota": "permanent", "lusail": "permanent",
     "yas_marina": "permanent", "shanghai": "permanent", "imola": "permanent",
-    "mexico_city": "permanent", "mexico": "permanent",
+    "mexico_city": "permanent", "mexico": "permanent", "sepang": "permanent",
 }
 
 
@@ -113,8 +114,8 @@ class ELOSystem:
         condition = ""
         params: tuple = ()
         if up_to_race_id:
-            condition = "WHERE r.race_id < ?"
-            params = (up_to_race_id,)
+            condition = f"WHERE {race_seq_sql('r.race_id')} < ?"
+            params = (race_seq(up_to_race_id),)
 
         races_df = query_df(
             f"""SELECT DISTINCT r.race_id, r.circuit_id, r.year, r.round
@@ -221,14 +222,24 @@ class ELOSystem:
 
 # Module-level singleton (rebuilt per training context)
 _elo_system: ELOSystem | None = None
+_elo_race_id: str | None = None
+_elo_built: bool = False
 
 
 def get_elo_system(race_id: str | None = None) -> ELOSystem:
-    """Get or build the ELO system, cached at module level."""
-    global _elo_system
-    # Always rebuild when race_id changes (to maintain temporal integrity)
-    _elo_system = ELOSystem()
-    _elo_system.build_from_db(up_to_race_id=race_id)
+    """Get or build the ELO system, cached at module level.
+
+    Rebuilds only when race_id changes, which is what temporal integrity
+    actually requires. This is called once per driver-row, so rebuilding
+    unconditionally meant replaying the whole race history ~20x per race
+    (once for every driver on the grid) and dominated feature-build time.
+    """
+    global _elo_system, _elo_race_id, _elo_built
+    if not _elo_built or _elo_race_id != race_id:
+        _elo_system = ELOSystem()
+        _elo_system.build_from_db(up_to_race_id=race_id)
+        _elo_race_id = race_id
+        _elo_built = True
     return _elo_system
 
 

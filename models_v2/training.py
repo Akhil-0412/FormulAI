@@ -151,7 +151,7 @@ def _inject_auxiliary_features(
 
 
 def train_ltr_model(
-    train_start: int = 2014,
+    train_start: int = 2022,
     train_end: int = 2024,
     val_year: int = 2025,
     optimize: bool = True,
@@ -229,11 +229,31 @@ def train_ltr_model(
                 len(group_val) if group_val is not None else "N/A")
 
     # 7. Train LTR model
-    best_params = config.get("models", {}).get("ltr_ranker", {}).get("best_params", None)
-    if best_params:
+    ltr_cfg = config.get("models", {}).get("ltr_ranker", {})
+    best_xgb = ltr_cfg.get("best_params_xgb")
+    best_lgb = ltr_cfg.get("best_params_lgb")
+    blend_weight = ltr_cfg.get("blend_weight_xgb", 0.5)
+
+    legacy = ltr_cfg.get("best_params")
+    if legacy and not (best_xgb or best_lgb):
+        # Older configs stored one shared dict written from an XGBoost-shaped
+        # search space. Apply it to XGBoost only and let LightGBM keep its
+        # defaults, rather than feeding it parameters it cannot interpret.
+        legacy = dict(legacy)
+        blend_weight = legacy.pop("blend_weight_xgb", blend_weight)
+        best_xgb = legacy
+        logger.warning(
+            "Config has a legacy shared 'best_params'; applying it to XGBoost "
+            "only. Re-run scripts/deep_tune.py to tune both rankers properly."
+        )
+
+    if best_xgb or best_lgb:
         logger.info("Using optimized hyperparameters from config.")
-        blend_weight = best_params.pop("blend_weight_xgb", 0.5)
-        model = F1LTRRanker(xgb_params=best_params, lgb_params=best_params, blend_weight_xgb=blend_weight)
+        model = F1LTRRanker(
+            xgb_params=best_xgb,
+            lgb_params=best_lgb,
+            blend_weight_xgb=blend_weight,
+        )
     else:
         model = F1LTRRanker()
     train_metrics = model.fit(
@@ -289,7 +309,8 @@ def train_ltr_model(
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Train FormulAI v3 LTR Model")
-    parser.add_argument("--start", type=int, default=2014, help="Train start year")
+    parser.add_argument("--start", type=int, default=2022,
+                        help="Train start year (2022 = ground-effect regulation era)")
     parser.add_argument("--end", type=int, default=2024, help="Train end year")
     parser.add_argument("--val", type=int, default=2025, help="Validation year")
     parser.add_argument("--optimize", action="store_true", help="Run hyperparameter optimization")

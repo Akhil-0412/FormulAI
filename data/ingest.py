@@ -15,6 +15,7 @@ from data.db import (
     upsert_qualifying,
     upsert_race,
     upsert_result,
+    upsert_sprint_result,
     upsert_standings,
 )
 from data.jolpica_client import JolpicaClient
@@ -75,7 +76,41 @@ def ingest_season(year: int, client: JolpicaClient | None = None) -> int:
                          race_data.get("raceName", "?"), year, race_data.get("round", "?"), exc)
 
     logger.info("Ingested %d/%d races for %d", count, len(races), year)
+    if year >= 2021:  # the sprint format started in 2021
+        _ingest_sprints(year, client)
     return count
+
+
+def _ingest_sprints(year: int, client: JolpicaClient) -> None:
+    """Sprint results, keyed to the weekend's Grand Prix race_id.
+
+    Only weekends whose race is already ingested are stored (races is the
+    FK parent); an upcoming weekend's sprint is read live by data.upcoming.
+    """
+    try:
+        sprints = client.get_sprint_results(year)
+    except Exception as exc:
+        logger.warning("No sprint data for %d: %s", year, exc)
+        return
+    with get_connection() as conn:
+        known = {r[0] for r in conn.execute("SELECT race_id FROM races WHERE year = ?", (year,))}
+        n = 0
+        for race in sprints:
+            race_id = f"{year}_{int(race['round'])}"
+            if race_id not in known:
+                continue
+            for res in race.get("SprintResults", []):
+                upsert_sprint_result(conn, {
+                    "race_id": race_id,
+                    "driver_id": res.get("Driver", {}).get("driverId", ""),
+                    "constructor_id": res.get("Constructor", {}).get("constructorId", ""),
+                    "grid": _safe_int(res.get("grid")),
+                    "position": _safe_int(res.get("position")),
+                    "status": res.get("status", ""),
+                    "points": _safe_float(res.get("points")),
+                })
+                n += 1
+    logger.info("Ingested %d sprint result rows for %d", n, year)
 
 
 def _ingest_single_race(year: int, race_data: dict, client: JolpicaClient) -> None:

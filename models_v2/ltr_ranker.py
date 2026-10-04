@@ -58,7 +58,12 @@ class F1LTRRanker:
         blend_weight_xgb: float = 0.5,
         softmax_temperature: float = 3.0,
     ):
-        self.xgb_params = xgb_params or {
+        # Overrides are MERGED over the defaults, never substituted for them.
+        # Replacing wholesale silently dropped the objective/metric settings
+        # whenever a caller passed a partial dict — e.g. handing an XGBoost
+        # param set to LightGBM stripped `objective`, `metric`, `ndcg_eval_at`
+        # and `min_child_samples`, leaving half the ensemble misconfigured.
+        self.xgb_params = {
             "objective": "rank:ndcg",
             "tree_method": "hist",
             "lambdarank_num_pair_per_sample": 8,
@@ -74,7 +79,9 @@ class F1LTRRanker:
             "random_state": 42,
             "verbosity": 0,
         }
-        self.lgb_params = lgb_params or {
+        self.xgb_params.update(xgb_params or {})
+
+        self.lgb_params = {
             "objective": "lambdarank",
             "metric": "ndcg",
             "ndcg_eval_at": [3, 5],
@@ -89,6 +96,11 @@ class F1LTRRanker:
             "random_state": 42,
             "verbosity": -1,
         }
+        self.lgb_params.update(lgb_params or {})
+        # LightGBM errors/warns on XGBoost-only keys if they leak in.
+        for xgb_only in ("lambdarank_num_pair_per_sample",
+                         "lambdarank_pair_method", "tree_method"):
+            self.lgb_params.pop(xgb_only, None)
         self.blend_weight_xgb = blend_weight_xgb
         self.softmax_temperature = softmax_temperature
 
@@ -198,6 +210,16 @@ class F1LTRRanker:
         )
 
         self.is_fitted = True
+
+        # Calibrate the probability scale against held-out outcomes. Does not
+        # affect ranking or top-3 selection — only how peaked the reported
+        # probabilities are.
+        if X_val_clean is not None and y_val_clean is not None and group_val is not None:
+            try:
+                self._calibrate_temperature(X_val_clean, y_val_clean, group_val)
+            except Exception as exc:
+                logger.warning("Temperature calibration failed, keeping default: %s", exc)
+
         duration = time.time() - start_time
 
         self.metadata = {
@@ -359,8 +381,13 @@ class F1LTRRanker:
                 "verbosity": -1,
             }
 
+            # NOTE: softmax_temperature is deliberately NOT searched here.
+            # This objective is NDCG@3, which depends only on the ORDER of the
+            # scores, and softmax(s/T) is monotonic in s — so temperature can
+            # never change this metric. Searching it here sampled a parameter
+            # the objective is blind to, making the "best" temperature random.
+            # It is calibrated separately in _calibrate_temperature().
             blend_w = trial.suggest_float("blend_weight_xgb", 0.2, 0.8)
-            temperature = trial.suggest_float("softmax_temp", 1.0, 10.0)
 
             # Train XGBoost
             xgb_n_est = xgb_p.pop("n_estimators")
@@ -427,7 +454,50 @@ class F1LTRRanker:
             "reg_lambda": best.get("lgb_lambda", 1.0),
         })
         self.blend_weight_xgb = best.get("blend_weight_xgb", 0.5)
-        self.softmax_temperature = best.get("softmax_temp", 3.0)
+
+    def _calibrate_temperature(
+        self,
+        X_val: pd.DataFrame,
+        y_val: pd.Series,
+        group_val: np.ndarray,
+    ) -> None:
+        """Fit the softmax temperature to a proper scoring rule.
+
+        Temperature cannot be tuned by NDCG (a rank metric it has no effect on),
+        so it is fitted here by minimising the negative log-likelihood of the
+        actual podium finishers under the per-race softmax. This only changes
+        how confident the reported probabilities are — the top-3 selection is
+        unaffected, since softmax preserves score order.
+        """
+        if X_val is None or y_val is None or group_val is None:
+            return
+
+        scores = self.predict_scores(X_val)
+        relevance = np.asarray(y_val)
+
+        def nll(temp: float) -> float:
+            total, start = 0.0, 0
+            for size in group_val:
+                s = scores[start:start + size]
+                rel = relevance[start:start + size]
+                start += size
+                scaled = s / max(temp, 1e-3)
+                scaled = scaled - scaled.max()
+                p = np.exp(scaled)
+                p = p / p.sum()
+                podium = rel > 0
+                if podium.any():
+                    total -= np.log(np.clip(p[podium], 1e-12, None)).sum()
+            return total
+
+        candidates = np.geomspace(0.02, 10.0, 60)
+        losses = [nll(t) for t in candidates]
+        best_temp = float(candidates[int(np.argmin(losses))])
+        self.softmax_temperature = best_temp
+        logger.info(
+            "Calibrated softmax_temperature=%.4f (NLL %.2f -> %.2f vs T=3.0)",
+            best_temp, nll(3.0), min(losses),
+        )
 
     @staticmethod
     def _compute_ndcg_at_k(

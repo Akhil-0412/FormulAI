@@ -14,7 +14,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from data.db import query_df
+from data.db import query_df, race_seq, race_seq_sql
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +29,14 @@ def compute_momentum_features(driver_id: str, race_id: str) -> dict:
 
     # Get last 5 race results
     recent = query_df(
-        """SELECT r.race_id, res.position, res.grid, res.is_podium, res.points, res.status
+        f"""SELECT r.race_id, res.position, res.grid, res.is_podium, res.points, res.status
            FROM results res
            JOIN races r ON res.race_id = r.race_id
-           WHERE res.driver_id = ? AND r.race_id < ?
+           WHERE res.driver_id = ? AND {race_seq_sql("r.race_id")} < ?
              AND res.position IS NOT NULL
            ORDER BY r.year DESC, r.round DESC
            LIMIT 5""",
-        (driver_id, race_id),
+        (driver_id, race_seq(race_id)),
     )
 
     if recent.empty:
