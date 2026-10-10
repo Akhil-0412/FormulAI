@@ -773,7 +773,7 @@
     ],
     "correct": 3,
     "winner_correct": true,
-    "brier_score": 0.0318632510683206,
+    "brier_score": 0.03186325106832061,
     "ndcg_at_3": 0.9910438099037578,
     "kendall_tau": 0.5930735930735931,
     "top3_precision": 1.0,
